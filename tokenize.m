@@ -8,6 +8,7 @@ function tokens = tokenize(text)
 %   - 'identifier'
 %   - 'space'
 %   - 'punctuation'
+%   - 'property'
 %   - 'string'
 %   - 'number'
 %   - 'pair'
@@ -15,7 +16,7 @@ function tokens = tokenize(text)
 %   - 'comment'
 %   - 'escape'
 
-    punctuation = '=.&|><~+-*^/\:,@';
+    punctuation = '=.&|><~+-*^/\:@';
     open_pairs = '{[(';
     close_pairs = '}])';
     escapes = '!%';
@@ -34,7 +35,9 @@ function tokens = tokenize(text)
     name_body = [name_start '0123456789_'];
 
     loc = 1;
-    tokens = struct('name', {}, 'text', {});
+    line_num = 1;
+    line_start = loc;
+    tokens = struct('name', {}, 'text', {}, 'line', {}, 'char', {});
     text = [text sprintf('\n')];
     nesting = 0; % count braces to decide whether 'end' is an operator or a keyword
     while loc < length(text)
@@ -52,43 +55,54 @@ function tokens = tokenize(text)
             symbol = skip(space);
             add_token('space', symbol);
         elseif any(letter == punctuation)
-            symbol = skip(punctuation);
-            add_token('punctuation', symbol);
+            % property access is punctuation, not variable name:
+            if letter == '.' && loc < length(text) && any(text(loc+1) == name_start)
+                loc = loc + 1;
+                symbol = [letter skip(name_body)];
+                add_token('property', symbol);
+            else
+                symbol = skip(punctuation);
+                add_token('punctuation', symbol);
+            end
         elseif letter == ''''
             previous = tokens(end);
             % transpose operator:
             if (strcmp(previous.name, 'pair') && any(previous.text == '}])')) || ...
                strcmp(previous.name, 'variable') || strcmp(previous.name, 'number');
-                add_token('punctuation', letter);
                 loc = loc + 1;
+                add_token('punctuation', letter);
             % element-wise transpose operator:
             elseif (strcmp(previous.name, 'punctuation') && previous.text(end) == '.')
-                tokens(end) = struct('name', previous.name, ...
-                                     'text', [previous.text letter]);
+                tokens(end) = [];
                 loc = loc + 1;
+                add_token(previous.name, [previous.text letter]);
             % strings:
             else
                 str = skip_string();
                 add_token('string', str);
             end
         elseif any(letter == open_pairs)
-            add_token('pair', letter);
             loc = loc + 1;
             nesting = nesting + 1;
-        elseif any(letter == close_pairs)
             add_token('pair', letter);
+        elseif any(letter == close_pairs)
             loc = loc + 1;
             nesting = nesting - 1;
+            add_token('pair', letter);
         elseif any(letter == breaks)
-            add_token('newline', letter);
             loc = loc + 1;
-        elseif any(letter == ';')
+            add_token('newline', letter);
+            % add the token before incrementing the line to to avoid
+            % confusing add_token
+            line_num = line_num + 1;
+            line_start = loc;
+        elseif any(letter == ';,')
+            loc = loc + 1;
             if nesting == 0
                 add_token('newline', letter);
             else
                 add_token('punctuation', letter);
             end
-            loc = loc + 1;
         elseif any(letter == number_start)
             symbol = skip(number_body);
             add_token('number', symbol);
@@ -105,7 +119,8 @@ function tokens = tokenize(text)
     end
 
     function add_token(name, text)
-        tokens(length(tokens)+1) = struct('name', name, 'text', text);
+        tokens(length(tokens)+1) = struct('name', name, 'text', text, ...
+                                          'line', line_num, 'char', loc-line_start-length(text));
     end
 
     function symbol = skip(letters)
@@ -114,6 +129,10 @@ function tokens = tokenize(text)
             loc = loc + 1;
         end
         symbol = text(start:loc-1);
+
+        function foobar()
+        end
+
     end
 
     function line = skip_line()
