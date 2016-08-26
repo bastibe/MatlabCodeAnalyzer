@@ -5,7 +5,7 @@ function tokens = tokenize(text)
 %   a 'text'. Concatenating all 'text's recreates the original TEXT.
 %   'name' can be one of:
 %   - 'keyword'
-%   - 'variable'
+%   - 'identifier'
 %   - 'space'
 %   - 'punctuation'
 %   - 'string'
@@ -16,11 +16,16 @@ function tokens = tokenize(text)
 %   - 'escape'
 
     punctuation = '=.&|><~+-*^/\:,@;';
-    pairs = '{}[]()';
+    open_pairs = '{[(';
+    close_pairs = '}])';
     escapes = '!%';
-    keywords = {'for' 'try' 'while' 'if' 'switch' 'function' ...
-                'classdef' 'methods' 'properties' 'events' 'enumeration' ...
-                'parfor' 'end' 'elseif' 'case' 'default'};
+
+    keywords = {'for' 'try' 'while' 'if' 'else' 'elseif' 'switch' ...
+                'case' 'default' 'function' 'classdef' 'methods' ...
+                'properties' 'events' 'enumeration' 'parfor' ...
+                'elseif' 'case' 'default' 'break'...
+                'continue'};
+
     space = sprintf(' \t');
     breaks = sprintf('\n');
     number_start = '0123456789';
@@ -31,14 +36,17 @@ function tokens = tokenize(text)
     loc = 1;
     tokens = struct('name', {}, 'text', {});
     text = [text sprintf('\n')];
+    nesting = 0; % count braces to decide whether 'end' is an operator or a keyword
     while loc < length(text)
         letter = text(loc);
         if any(letter == name_start)
             symbol = skip(name_body);
             if any(strcmp(symbol, keywords))
                 add_token('keyword', symbol);
+            elseif strcmp(symbol, 'end') && nesting == 0
+                add_token('keyword', symbol);
             else
-                add_token('variable', symbol);
+                add_token('identifier', symbol);
             end
         elseif any(letter == space)
             symbol = skip(space);
@@ -63,9 +71,14 @@ function tokens = tokenize(text)
                 str = skip_string();
                 add_token('string', str);
             end
-        elseif any(letter == pairs)
+        elseif any(letter == open_pairs)
             add_token('pair', letter);
             loc = loc + 1;
+            nesting = nesting + 1;
+        elseif any(letter == close_pairs)
+            add_token('pair', letter);
+            loc = loc + 1;
+            nesting = nesting - 1;
         elseif any(letter == breaks)
             add_token('newline', letter);
             loc = loc + 1;
