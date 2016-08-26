@@ -4,9 +4,25 @@ function report = check(funcname)
     text = fileread(funcname);
     tokens = tokenize(text);
 
-    functions = functions(tokens);
+    report = containers.Map();
+    report('functions') = functions(tokens);
+    report('variables') = variables(tokens);
+end
 
-    report = struct('functions', functions);
+function variables = variables(tokens)
+    variables = containers.Map();
+    for pos = 1:length(tokens)
+        token = tokens(pos);
+        if strcmp(token.name, 'punctuation') && strcmp(token.text, '=')
+            start = search_token('newline', [], tokens, pos, -1);
+            for t=tokens(start:pos)
+                if strcmp(t.name, 'identifier')
+                    variables(t.text) = true;
+                end
+            end
+        end
+    end
+    variables = variables.keys();
 end
 
 function functions = functions(tokens)
@@ -45,14 +61,17 @@ end
 function pos = search_token(name, text, tokens, pos, increment)
     if ~isempty(name) && ~isempty(text)
         while ~( strcmp(tokens(pos).name, name) && strcmp(tokens(pos).text, text) )
+            if pos == 1 || pos == length(tokens), break, end
             pos = pos + increment;
         end
     elseif ~isempty(text)
         while ~strcmp(tokens(pos).text, text)
+            if pos == 1 || pos == length(tokens), break, end
             pos = pos + increment;
         end
     elseif ~isempty(name)
         while ~strcmp(tokens(pos).name, name)
+            if pos == 1 || pos == length(tokens), break, end
             pos = pos + increment;
         end
     end

@@ -15,7 +15,7 @@ function tokens = tokenize(text)
 %   - 'comment'
 %   - 'escape'
 
-    punctuation = '=.&|><~+-*^/\:,@;';
+    punctuation = '=.&|><~+-*^/\:,@';
     open_pairs = '{[(';
     close_pairs = '}])';
     escapes = '!%';
@@ -81,6 +81,13 @@ function tokens = tokenize(text)
             nesting = nesting - 1;
         elseif any(letter == breaks)
             add_token('newline', letter);
+            loc = loc + 1;
+        elseif any(letter == ';')
+            if nesting == 0
+                add_token('newline', letter);
+            else
+                add_token('punctuation', letter);
+            end
             loc = loc + 1;
         elseif any(letter == number_start)
             symbol = skip(number_body);
