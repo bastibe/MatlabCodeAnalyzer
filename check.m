@@ -3,5 +3,5 @@ function report = check(filename)
 
     text = fileread(filename);
     tokens = tokenize(text);
-    report = extract_functions(tokens);
+    report = analyze_functions(tokens);
 end
