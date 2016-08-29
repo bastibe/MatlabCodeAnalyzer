@@ -3,7 +3,7 @@ function functions = extract_functions(tokens)
                   'events' 'properties' 'enumeration' 'methods' ...
                   'function'};
 
-    functions = struct('name', {}, 'body', {}, 'nesting', {}, 'children', {}, 'variables', {});
+    functions = struct('name', {}, 'body', {}, 'nesting', {}, 'children', {}, 'variables', {}, 'arguments', {}, 'returns', {});
     stack = struct('start', {}, 'nesting', {}, 'children', {});
     nesting = 0;
     for pos = 1:length(tokens)
@@ -24,7 +24,11 @@ function functions = extract_functions(tokens)
                           'body', body, ...
                           'nesting', stack(end).nesting, ...
                           'children', stack(end).children, ...
-                          'variables', {variables(body)});
+                          'variables', {variables(body)}, ...
+                          'arguments', [], ...
+                          'returns', []);
+            func.arguments = get_funcargs(body);
+            func.returns = get_funreturns(body);
             stack(end) = [];
             if nesting > 0
                 if isempty(stack(end).children)
@@ -71,38 +75,32 @@ function variables = variables(tokens)
             end
         end
     end
-    variables = variables.keys();
+    variables = [variables.keys() get_funcargs(tokens)];
 end
 
 
 function name = get_funcname(tokens)
-    % skip leading space
-    if tokens(1).hasType('space')
-        tokens = tokens(2:end);
-    end
-    % skip function keyword
-    tokens = tokens(2:end);
-    if tokens(1).hasType('space')
-        tokens = tokens(2:end);
-    end
-    % function [...] = foobar(...)
-    if tokens(1).hasType('pair')
-        pos = search_token('punctuation', '=', tokens, 1, +1);
-        pos = search_token('identifier', [], tokens, pos, +1);
-    % function varname = foobar(...)
-    elseif tokens(1).hasType('identifier') && ...
-        (tokens(2).isEqual('punctuation', '=') || ...
-         tokens(3).isEqual('punctuation', '='))
-        pos = search_token('punctuation', '=', tokens, 1, +1);
-        pos = search_token('identifier', [], tokens, pos, +1);
-    % function foobar(...)
-    else
-        pos = search_token('pair', '(', tokens, 1, +1);
-        pos = search_token('identifier', [], tokens, pos, -1);
-    end
+    pos = search_token('pair', '(', tokens, 1, +1);
+    pos = search_token('identifier', [], tokens, pos, -1);
     name = tokens(pos).text;
 end
 
+function arguments = get_funcargs(tokens)
+    start = search_token('pair', '(', tokens, 1, +1);
+    stop = search_token('pair', ')', tokens, start, +1);
+    rhs = tokens(start+1:stop-1);
+    rhs = rhs(strcmp({rhs.type}, 'identifier'));
+    arguments = {rhs.text};
+end
+
+function returns = get_funreturns(tokens)
+    start = search_token('keyword', 'function', tokens, 1, +1);
+    pos = search_token('pair', '(', tokens, start, +1);
+    stop = search_token('identifier', [], tokens, pos, -1);
+    lhs = tokens(start+1:stop-1);
+    lhs = lhs(strcmp({lhs.type}, 'identifier'));
+    returns = {lhs.text};
+end
 
 function pos = search_token(name, text, tokens, pos, increment)
     if ~isempty(name) && ~isempty(text)
