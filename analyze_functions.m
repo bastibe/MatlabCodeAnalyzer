@@ -9,7 +9,7 @@ function functions = analyze_functions(tokens)
     for pos = 1:length(tokens)
         token = tokens(pos);
         % count the 'end's to figure out when functions end
-        if token.isEqual('keyword', 'function')
+        if token.isEqual('keyword', beginnings)
             nesting = nesting + 1;
         elseif token.isEqual('keyword', 'end')
             nesting = nesting - 1;
@@ -18,7 +18,7 @@ function functions = analyze_functions(tokens)
         if token.isEqual('keyword', 'function')
             stack = [stack struct('start', pos, 'nesting', nesting-1, 'children', [])];
         elseif token.isEqual('keyword', 'end') && ...
-                ~isempty(stack) && nesting == stack(end).nesting
+               ~isempty(stack) && nesting == stack(end).nesting
             body = tokens(stack(end).start:pos);
             func = struct('name', get_funcname(body), ...
                           'body', body, ...
@@ -28,7 +28,7 @@ function functions = analyze_functions(tokens)
                           'arguments', {get_funcarguments(body)}, ...
                           'returns', {get_funreturns(body)});
             stack(end) = [];
-            if nesting > 0
+            if nesting > 0 && ~isempty(stack)
                 if isempty(stack(end).children)
                     stack(end).children = func;
                 else
