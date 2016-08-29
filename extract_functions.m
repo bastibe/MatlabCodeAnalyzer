@@ -45,7 +45,7 @@ function variables = variables(tokens)
     for pos = 1:length(tokens)
         token = tokens(pos);
         if token.isEqual('punctuation', '=')
-            start = search_token('newline', [], tokens, pos, -1);
+            start = search_token('linebreak', [], tokens, pos, -1);
             lhs_tokens = tokens(start:pos);
             % strip white space from beginning and end
             if lhs_tokens(1).hasType('space')

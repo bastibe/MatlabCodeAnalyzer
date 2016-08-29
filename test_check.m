@@ -1,11 +1,8 @@
 %% Tokenizing a text should not change the content
 text = fileread('check.m');
 tokens = tokenize(text);
-str = '';
-for t=tokens
-    str = [str t.text];
-end
-assert(strcmp(str, text))
+reconstructed_text = horzcat(tokens.text);
+assert(strcmp(reconstructed_text, text))
 
 %% Function names should be extracted
 report = extract_functions(tokenize('function foo(); end'));
@@ -42,6 +39,11 @@ assert(tokens(5).isEqual('string', 'please'))
 assert(tokens(7).isEqual('comment', '% test'))
 
 %% differentiate keyword end from variable end
-tokens = tokenize('if a(end); end')
+tokens = tokenize('if a(end); end');
 assert(tokens(5).isEqual('identifier', 'end'))
 assert(tokens(9).isEqual('keyword', 'end'))
+
+%% differentiate semicolons from linebreaks
+tokens = tokenize('[1;2];3');
+assert(tokens(3).isEqual('punctuation', ';'))
+assert(tokens(6).isEqual('linebreak', ';'))

@@ -12,7 +12,7 @@ function tokens = tokenize(text)
 %   - 'string'
 %   - 'number'
 %   - 'pair'
-%   - 'newline'
+%   - 'linebreak'
 %   - 'comment'
 %   - 'escape'
 
@@ -120,7 +120,7 @@ function tokens = tokenize(text)
             add_token('pair', letter);
         elseif any(letter == breaks)
             loc = loc + 1;
-            add_token('newline', letter);
+            add_token('linebreak', letter);
             % add the token before incrementing the line to to avoid
             % confusing add_token
             line_num = line_num + 1;
@@ -129,7 +129,7 @@ function tokens = tokenize(text)
         elseif any(letter == ';,')
             loc = loc + 1;
             if nesting == 0
-                add_token('newline', letter);
+                add_token('linebreak', letter);
                 is_first = true;
             else
                 add_token('punctuation', letter);
@@ -206,7 +206,7 @@ function tokens = tokenize(text)
             elseif any(letter == [breaks '%,;'])
                 break
             else
-                str = skip_unless([breaks space '%,;'])
+                str = skip_unless([breaks space '%,;']);
                 add_token('string', str);
             end
         end
