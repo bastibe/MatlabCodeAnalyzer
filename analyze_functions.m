@@ -69,37 +69,38 @@ function variables = variables(tokens)
                     nesting = nesting + 1;
                 elseif t.isEqual('pair', ']})')
                     nesting = nesting - 1;
-                elseif t.hasType('identifier') && nesting == 0
-                    variables(t.text) = true;
+                elseif t.hasType('identifier') && nesting == 0 && ~variables.isKey(t.text)
+                    variables(t.text) = t;
                 end
             end
         end
     end
-    variables = [variables.keys() get_funcargs(tokens)];
+    variables = variables.values();
+    variables = [get_funcargs(tokens) variables{:}];
 end
 
 
 function name = get_funcname(tokens)
     pos = search_token('pair', '(', tokens, 1, +1);
     pos = search_token('identifier', [], tokens, pos, -1);
-    name = tokens(pos).text;
+    name = tokens(pos);
 end
 
 function arguments = get_funcargs(tokens)
     start = search_token('pair', '(', tokens, 1, +1);
     stop = search_token('pair', ')', tokens, start, +1);
-    rhs = tokens(start+1:stop-1);
-    rhs = rhs(strcmp({rhs.type}, 'identifier'));
-    arguments = {rhs.text};
+    arguments = tokens(start+1:stop-1);
+    % extract all identifiers:
+    arguments = arguments(strcmp({arguments.type}, 'identifier'));
 end
 
 function returns = get_funreturns(tokens)
     start = search_token('keyword', 'function', tokens, 1, +1);
     pos = search_token('pair', '(', tokens, start, +1);
     stop = search_token('identifier', [], tokens, pos, -1);
-    lhs = tokens(start+1:stop-1);
-    lhs = lhs(strcmp({lhs.type}, 'identifier'));
-    returns = {lhs.text};
+    returns = tokens(start+1:stop-1);
+    % extract all identifiers:
+    returns = returns(strcmp({returns.type}, 'identifier'));
 end
 
 function pos = search_token(name, text, tokens, pos, increment)
