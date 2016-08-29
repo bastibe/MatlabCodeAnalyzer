@@ -33,3 +33,10 @@ tokens = tokenize('a''+''a''.''');
 assert(tokens(2).isEqual('punctuation', ''''))
 assert(tokens(4).isEqual('string', '''a'''))
 assert(tokens(5).isEqual('punctuation', '.'''))
+
+%% differentiate commands from expressions
+tokens = tokenize('help me please % test');
+assert(tokens(1).isEqual('identifier', 'help'))
+assert(tokens(3).isEqual('string', 'me'))
+assert(tokens(5).isEqual('string', 'please'))
+assert(tokens(7).isEqual('comment', '% test'))

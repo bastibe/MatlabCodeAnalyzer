@@ -42,24 +42,39 @@ function tokens = tokenize(text)
     loc = 1;
     line_num = 1;
     line_start = loc;
+    is_first = true;
     tokens = Token.empty;
-    text = [text sprintf('\n')];
+    text = [text sprintf('\n')]; % ensure proper file end (won't be parsed)
     nesting = 0; % count braces to decide whether 'end' is an operator or a keyword
     while loc < length(text)
         letter = text(loc);
         if any(letter == name_start)
             symbol = skip(name_body);
             if any(strcmp(symbol, keywords))
+                is_first = false;
                 add_token('keyword', symbol);
             elseif strcmp(symbol, 'end') && nesting == 0
                 add_token('keyword', symbol);
             else
                 add_token('identifier', symbol);
+                % decide whether this is the start of a command
+                if is_first
+                    is_first = false;
+                    saved_loc = loc;
+                    first_space = skip(space);
+                    first_word = skip_unless([space breaks ';,%']);
+                    loc = saved_loc;
+                    % commands are any single name that is not followed by an operator:
+                    if ~any(strcmp(first_word, operators)) && ~isempty(first_space)
+                        parse_command()
+                    end
+                end
             end
         elseif any(letter == space)
             symbol = skip(space);
             add_token('space', symbol);
         elseif any(letter == punctuation)
+            is_first = false;
             % property access
             if letter == '.' && loc < length(text) && any(text(loc+1) == name_start)
                 loc = loc + 1;
@@ -83,6 +98,7 @@ function tokens = tokenize(text)
                 end
             end
         elseif letter == ''''
+            is_first = false;
             previous = tokens(end);
             % transpose operator:
             if previous.isEqual('pair', {'}' ']' ')'}) || ...
@@ -95,6 +111,7 @@ function tokens = tokenize(text)
                 add_token('string', str);
             end
         elseif any(letter == open_pairs)
+            is_first = false;
             loc = loc + 1;
             nesting = nesting + 1;
             add_token('pair', letter);
@@ -109,14 +126,17 @@ function tokens = tokenize(text)
             % confusing add_token
             line_num = line_num + 1;
             line_start = loc;
+            is_first = true;
         elseif any(letter == ';,')
             loc = loc + 1;
             if nesting == 0
                 add_token('newline', letter);
+                is_first = true;
             else
                 add_token('punctuation', letter);
             end
         elseif any(letter == number_start)
+            is_first = false;
             symbol = skip(number_body);
             add_token('number', symbol);
         elseif any(letter == escapes)
@@ -142,10 +162,14 @@ function tokens = tokenize(text)
             loc = loc + 1;
         end
         symbol = text(start:loc-1);
+    end
 
-        function foobar()
+    function symbol = skip_unless(letters)
+        start = loc;
+        while all(text(loc) ~= letters)
+            loc = loc + 1;
         end
-
+        symbol = text(start:loc-1);
     end
 
     function line = skip_line()
@@ -169,5 +193,23 @@ function tokens = tokenize(text)
             end
         end
         str = text(start:loc-1);
+    end
+
+    function parse_command()
+        while loc < length(text)
+            letter = text(loc);
+            if letter == ''''
+                str = skip_string();
+                add_token('string', str);
+            elseif any(letter == space)
+                symbol = skip(space);
+                add_token('space', symbol);
+            elseif any(letter == [breaks '%,;'])
+                break
+            else
+                str = skip_unless([breaks space '%,;'])
+                add_token('string', str);
+            end
+        end
     end
 end
