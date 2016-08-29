@@ -25,18 +25,18 @@ assert(strcmp(tokens(3).text, '-'))
 %% Transpose Operators should not be strings
 tokens = tokenize('a''')
 assert(strcmp(tokens(2).text, ''''))
-assert(strcmp(tokens(2).name, 'punctuation'))
+assert(strcmp(tokens(2).type, 'punctuation'))
 
 tokens = tokenize('a.''')
 assert(strcmp(tokens(2).text, '.'''))
-assert(strcmp(tokens(2).name, 'punctuation'))
+assert(strcmp(tokens(2).type, 'punctuation'))
 
 tokens = tokenize('a''+''a''.''')
 assert(strcmp(tokens(2).text, ''''))
-assert(strcmp(tokens(2).name, 'punctuation'))
+assert(strcmp(tokens(2).type, 'punctuation'))
 
 assert(strcmp(tokens(4).text, '''a'''))
-assert(strcmp(tokens(4).name, 'string'))
+assert(strcmp(tokens(4).type, 'string'))
 
 assert(strcmp(tokens(5).text, '.'''))
-assert(strcmp(tokens(5).name, 'punctuation'))
+assert(strcmp(tokens(5).type, 'punctuation'))

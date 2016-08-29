@@ -9,15 +9,15 @@ function functions = extract_functions(tokens)
     for pos = 1:length(tokens)
         token = tokens(pos);
         % count the 'end's to figure out when functions end
-        if strcmp(token.name, 'keyword') && any(strcmp(token.text, beginnings))
+        if strcmp(token.type, 'keyword') && any(strcmp(token.text, beginnings))
             nesting = nesting + 1;
-        elseif strcmp(token.name, 'keyword') && strcmp(token.text, 'end')
+        elseif strcmp(token.type, 'keyword') && strcmp(token.text, 'end')
             nesting = nesting - 1;
         end
         % remember function starts and ends
-        if strcmp(token.name, 'keyword') && strcmp(token.text, 'function')
+        if strcmp(token.type, 'keyword') && strcmp(token.text, 'function')
             stack = [stack struct('start', pos, 'nesting', nesting-1, 'children', [])];
-        elseif (strcmp(token.name, 'keyword') && strcmp(token.text, 'end') && ...
+        elseif (strcmp(token.type, 'keyword') && strcmp(token.text, 'end') && ...
                 ~isempty(stack) && nesting == stack(end).nesting)
             body = tokens(stack(end).start:pos);
             func = struct('name', get_funcname(body), ...
@@ -44,28 +44,28 @@ function variables = variables(tokens)
     variables = containers.Map();
     for pos = 1:length(tokens)
         token = tokens(pos);
-        if strcmp(token.name, 'punctuation') && strcmp(token.text, '=')
+        if strcmp(token.type, 'punctuation') && strcmp(token.text, '=')
             start = search_token('newline', [], tokens, pos, -1);
             lhs_tokens = tokens(start:pos);
             % strip white space from beginning and end
-            if strcmp(lhs_tokens(1).name, 'space')
+            if strcmp(lhs_tokens(1).type, 'space')
                 lhs_tokens = lhs_tokens(2:end);
             end
-            if strcmp(lhs_tokens(end).name, 'space')
+            if strcmp(lhs_tokens(end).type, 'space')
                 lhs_tokens = lhs_tokens(1:end-1);
             end
             % strip parens from beginning and end
-            if strcmp(lhs_tokens(1).name, 'pair') && strcmp(lhs_tokens(end).name, 'pair')
+            if strcmp(lhs_tokens(1).type, 'pair') && strcmp(lhs_tokens(end).type, 'pair')
                 lhs_tokens = lhs_tokens(2:end-1);
             end
             % all non-nested identifiers are assigned variable names
             nesting = 0;
             for t=lhs_tokens
-                if strcmp(t.name, 'pair') && any(t.text == '[{(')
+                if strcmp(t.type, 'pair') && any(t.text == '[{(')
                     nesting = nesting + 1;
-                elseif strcmp(t.name, 'pair') && any(t.text == ']})')
+                elseif strcmp(t.type, 'pair') && any(t.text == ']})')
                     nesting = nesting - 1;
-                elseif strcmp(t.name, 'identifier') && nesting == 0
+                elseif strcmp(t.type, 'identifier') && nesting == 0
                     variables(t.text) = true;
                 end
             end
@@ -77,22 +77,22 @@ end
 
 function name = get_funcname(tokens)
     % skip leading space
-    if strcmp(tokens(1).name, 'space')
+    if strcmp(tokens(1).type, 'space')
         tokens = tokens(2:end);
     end
     % skip function keyword
     tokens = tokens(2:end);
-    if strcmp(tokens(1).name, 'space')
+    if strcmp(tokens(1).type, 'space')
         tokens = tokens(2:end);
     end
     % function [...] = foobar(...)
-    if strcmp(tokens(1).name, 'pair')
+    if strcmp(tokens(1).type, 'pair')
         pos = search_token('punctuation', '=', tokens, 1, +1);
         pos = search_token('identifier', [], tokens, pos, +1);
     % function varname = foobar(...)
-    elseif strcmp(tokens(1).name, 'identifier') && ...
-        ((strcmp(tokens(2).name, 'punctuation') && strcmp(tokens(2).text, '=')) || ...
-         (strcmp(tokens(3).name, 'punctuation') && strcmp(tokens(3).text, '=')))
+    elseif strcmp(tokens(1).type, 'identifier') && ...
+        ((strcmp(tokens(2).type, 'punctuation') && strcmp(tokens(2).text, '=')) || ...
+         (strcmp(tokens(3).type, 'punctuation') && strcmp(tokens(3).text, '=')))
         pos = search_token('punctuation', '=', tokens, 1, +1);
         pos = search_token('identifier', [], tokens, pos, +1);
     % function foobar(...)
@@ -106,7 +106,7 @@ end
 
 function pos = search_token(name, text, tokens, pos, increment)
     if ~isempty(name) && ~isempty(text)
-        while ~( strcmp(tokens(pos).name, name) && strcmp(tokens(pos).text, text) )
+        while ~( strcmp(tokens(pos).type, name) && strcmp(tokens(pos).text, text) )
             if pos + increment < 1 || pos + increment > length(tokens), break, end
             pos = pos + increment;
         end
@@ -116,7 +116,7 @@ function pos = search_token(name, text, tokens, pos, increment)
             pos = pos + increment;
         end
     elseif ~isempty(name)
-        while ~strcmp(tokens(pos).name, name)
+        while ~strcmp(tokens(pos).type, name)
             if pos + increment < 1 || pos + increment > length(tokens), break, end
             pos = pos + increment;
         end

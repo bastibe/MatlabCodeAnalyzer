@@ -1,9 +1,9 @@
 function tokens = tokenize(text)
 %TOKENIZE splits M-code into tokens
 %   TOKENIZE(TEXT) splits the TEXT into interpretable parts.
-%   It returns a struct array, where each struct contains a 'name' and
+%   It returns a struct array, where each struct contains a 'type' and
 %   a 'text'. Concatenating all 'text's recreates the original TEXT.
-%   'name' can be one of:
+%   'type' can be one of:
 %   - 'keyword'
 %   - 'identifier'
 %   - 'space'
@@ -42,7 +42,7 @@ function tokens = tokenize(text)
     loc = 1;
     line_num = 1;
     line_start = loc;
-    tokens = struct('name', {}, 'text', {}, 'line', {}, 'char', {});
+    tokens = struct('type', {}, 'text', {}, 'line', {}, 'char', {});
     text = [text sprintf('\n')];
     nesting = 0; % count braces to decide whether 'end' is an operator or a keyword
     while loc < length(text)
@@ -85,9 +85,9 @@ function tokens = tokenize(text)
         elseif letter == ''''
             previous = tokens(end);
             % transpose operator:
-            if (strcmp(previous.name, 'pair') && any(previous.text == '}])')) || ...
-               strcmp(previous.name, 'identifier') || strcmp(previous.name, 'number') || ...
-               strcmp(previous.name, 'property');
+            if (strcmp(previous.type, 'pair') && any(previous.text == '}])')) || ...
+               strcmp(previous.type, 'identifier') || strcmp(previous.type, 'number') || ...
+               strcmp(previous.type, 'property');
                 loc = loc + 1;
                 add_token('punctuation', letter);
             % strings:
@@ -133,7 +133,7 @@ function tokens = tokenize(text)
     end
 
     function add_token(name, text)
-        tokens(length(tokens)+1) = struct('name', name, 'text', text, ...
+        tokens(length(tokens)+1) = struct('type', name, 'text', text, ...
                                           'line', line_num, 'char', loc-line_start-length(text));
     end
 
