@@ -26,6 +26,11 @@ function tokens = tokenize(text)
                 'properties' 'events' 'enumeration' 'parfor' ...
                 'elseif' 'case' 'default' 'break'...
                 'continue'};
+    operators = { '+'  '-'  '*'  '/'  '^'  '\' ...
+                 '.+' '.-' '.*' './' '.^' '.\' ...
+                 '>' '<' '~' '==' '>=' '<=' '~=' ...
+                 '@' '=' ',' ';' '||' '&&' '|' '&'};
+    unary_operators = '+-@~';
 
     space = sprintf(' \t');
     breaks = sprintf('\n');
@@ -55,27 +60,36 @@ function tokens = tokenize(text)
             symbol = skip(space);
             add_token('space', symbol);
         elseif any(letter == punctuation)
-            % property access is punctuation, not variable name:
+            % property access
             if letter == '.' && loc < length(text) && any(text(loc+1) == name_start)
                 loc = loc + 1;
                 symbol = [letter skip(name_body)];
                 add_token('property', symbol);
             else
                 symbol = skip(punctuation);
-                add_token('punctuation', symbol);
+                % one operator:
+                if any(strcmp(symbol, operators))
+                    add_token('punctuation', symbol);
+                % a binary operator, followed by a unary operator:
+                elseif any(symbol(end) == unary_operators) && any(strcmp(symbol(1:end-1), operators))
+                    add_token('punctuation', symbol(1:end-1));
+                    add_token('punctuation', symbol(end));
+                % element-wise transpose operator:
+                elseif strcmp(symbol, '.') && text(loc) == ''''
+                    loc = loc + 1;
+                    add_token('punctuation', '.''');
+                else
+                    error(['unknown operator ''' symbol '''']);
+                end
             end
         elseif letter == ''''
             previous = tokens(end);
             % transpose operator:
             if (strcmp(previous.name, 'pair') && any(previous.text == '}])')) || ...
-               strcmp(previous.name, 'variable') || strcmp(previous.name, 'number');
+               strcmp(previous.name, 'identifier') || strcmp(previous.name, 'number') || ...
+               strcmp(previous.name, 'property');
                 loc = loc + 1;
                 add_token('punctuation', letter);
-            % element-wise transpose operator:
-            elseif (strcmp(previous.name, 'punctuation') && previous.text(end) == '.')
-                tokens(end) = [];
-                loc = loc + 1;
-                add_token(previous.name, [previous.text letter]);
             % strings:
             else
                 str = skip_string();
