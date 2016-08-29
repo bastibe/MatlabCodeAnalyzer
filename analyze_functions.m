@@ -9,7 +9,7 @@ function functions = analyze_functions(tokens)
     for pos = 1:length(tokens)
         token = tokens(pos);
         % count the 'end's to figure out when functions end
-        if token.isEqual('keyword', beginnings)
+        if token.isEqual('keyword', 'function')
             nesting = nesting + 1;
         elseif token.isEqual('keyword', 'end')
             nesting = nesting - 1;
