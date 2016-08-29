@@ -1,5 +1,6 @@
 function report = check(filename)
     [requiredFiles, requiredProducts] = matlab.codetools.requiredFilesAndProducts(filename);
+    mlintInfo = checkcode(filename, '-cyc', '-id');
 
     text = fileread(filename);
     tokens = tokenize(text);
@@ -42,6 +43,9 @@ function report = check(filename)
                 fprintf('\n');
             end
 
+            print_complexity(mlintInfo, func.body(1).line);
+            print_mlint_warnings(mlintInfo, func.body(1).line, func.body(end).line);
+
             if isempty(func.arguments)
                 fprintf('    No Arguments\n\n');
             else
@@ -69,6 +73,46 @@ function report = check(filename)
     else
         report = func_report;
     end
+end
+
+
+function print_complexity(mlintInfo, func_start)
+    mlintInfo = mlintInfo(strcmp({mlintInfo.id}, 'CABE'));
+    mlintInfo = mlintInfo([mlintInfo.line] == func_start);
+    if isempty(mlintInfo)
+        return
+    end
+    assert(length(mlintInfo) == 1);
+
+    pattern = 'The McCabe complexity of ''(?<f>[^'']+)'' is (?<n>[0-9]+)';
+
+    matches = regexp(mlintInfo.message, pattern, 'names');
+    complexity = str2num(matches.n);
+    fprintf('    McCabe complexity: %i ', complexity);
+    if complexity < 10
+        fprintf('(good)\n\n');
+    elseif complexity < 15
+        fprintf('(high)\n\n');
+    else
+        fprintf('[\b(too high)]\b\n\n');
+    end
+end
+
+
+function print_mlint_warnings(mlintInfo, func_start, func_stop)
+    mlintInfo = mlintInfo([mlintInfo.line] >= func_start);
+    mlintInfo = mlintInfo([mlintInfo.line] <= func_stop);
+    mlintInfo = mlintInfo(~strcmp({mlintInfo.id}, 'CABE'));
+    if isempty(mlintInfo)
+        return
+    end
+    fprintf('    MLint messages:\n');
+    for idx=1:length(mlintInfo)
+        info = mlintInfo(idx);
+        fprintf('      [\b%s]\b (%i:%i)\n', ...
+                info.message, info.line, info.column(1));
+    end
+    fprintf('\n');
 end
 
 
