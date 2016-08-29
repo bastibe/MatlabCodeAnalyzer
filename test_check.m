@@ -18,25 +18,18 @@ report = extract_functions(tokenize('function [x, y] = foo(); end'));
 assert(strcmp(report.name, 'foo'))
 
 %% Operators should be parsed correctly
-tokens = tokenize('a>=-b')
-assert(strcmp(tokens(2).text, '>='))
-assert(strcmp(tokens(3).text, '-'))
+tokens = tokenize('a>=-b');
+assert(tokens(2).hasText('>='))
+assert(tokens(3).hasText('-'))
 
 %% Transpose Operators should not be strings
-tokens = tokenize('a''')
-assert(strcmp(tokens(2).text, ''''))
-assert(strcmp(tokens(2).type, 'punctuation'))
+tokens = tokenize('a''');
+assert(tokens(2).isEqual('punctuation', ''''))
 
-tokens = tokenize('a.''')
-assert(strcmp(tokens(2).text, '.'''))
-assert(strcmp(tokens(2).type, 'punctuation'))
+tokens = tokenize('a.''');
+assert(tokens(2).isEqual('punctuation', '.'''))
 
-tokens = tokenize('a''+''a''.''')
-assert(strcmp(tokens(2).text, ''''))
-assert(strcmp(tokens(2).type, 'punctuation'))
-
-assert(strcmp(tokens(4).text, '''a'''))
-assert(strcmp(tokens(4).type, 'string'))
-
-assert(strcmp(tokens(5).text, '.'''))
-assert(strcmp(tokens(5).type, 'punctuation'))
+tokens = tokenize('a''+''a''.''');
+assert(tokens(2).isEqual('punctuation', ''''))
+assert(tokens(4).isEqual('string', '''a'''))
+assert(tokens(5).isEqual('punctuation', '.'''))

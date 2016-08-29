@@ -42,7 +42,7 @@ function tokens = tokenize(text)
     loc = 1;
     line_num = 1;
     line_start = loc;
-    tokens = struct('type', {}, 'text', {}, 'line', {}, 'char', {});
+    tokens = Token.empty;
     text = [text sprintf('\n')];
     nesting = 0; % count braces to decide whether 'end' is an operator or a keyword
     while loc < length(text)
@@ -85,9 +85,8 @@ function tokens = tokenize(text)
         elseif letter == ''''
             previous = tokens(end);
             % transpose operator:
-            if (strcmp(previous.type, 'pair') && any(previous.text == '}])')) || ...
-               strcmp(previous.type, 'identifier') || strcmp(previous.type, 'number') || ...
-               strcmp(previous.type, 'property');
+            if previous.isEqual('pair', {'}' ']' ')'}) || ...
+               previous.hasType({'identifier' 'number' 'property'})
                 loc = loc + 1;
                 add_token('punctuation', letter);
             % strings:
@@ -133,8 +132,8 @@ function tokens = tokenize(text)
     end
 
     function add_token(name, text)
-        tokens(length(tokens)+1) = struct('type', name, 'text', text, ...
-                                          'line', line_num, 'char', loc-line_start-length(text));
+        char_num = loc-line_start-length(text);
+        tokens(length(tokens)+1) = Token(name, text, line_num, char_num);
     end
 
     function symbol = skip(letters)
