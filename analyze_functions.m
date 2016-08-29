@@ -24,11 +24,9 @@ function functions = analyze_functions(tokens)
                           'body', body, ...
                           'nesting', stack(end).nesting, ...
                           'children', stack(end).children, ...
-                          'variables', {variables(body)}, ...
-                          'arguments', [], ...
-                          'returns', []);
-            func.arguments = get_funcargs(body);
-            func.returns = get_funreturns(body);
+                          'variables', {get_funcvariables(body)}, ...
+                          'arguments', {get_funcarguments(body)}, ...
+                          'returns', {get_funreturns(body)});
             stack(end) = [];
             if nesting > 0
                 if isempty(stack(end).children)
@@ -44,9 +42,10 @@ function functions = analyze_functions(tokens)
 end
 
 
-function variables = variables(tokens)
+function variables = get_funcvariables(tokens)
     variables = containers.Map();
-    for pos = 1:length(tokens)
+    func_start = search_token('pair', ')', tokens, 1, +1);
+    for pos = func_start:length(tokens)
         token = tokens(pos);
         if token.isEqual('punctuation', '=')
             start = search_token('linebreak', [], tokens, pos, -1);
@@ -76,7 +75,15 @@ function variables = variables(tokens)
         end
     end
     variables = variables.values();
-    variables = [get_funcargs(tokens) variables{:}];
+    variables = [variables{:}]; % convert to object array
+    if ~isempty(variables)
+        % sort by char:
+        [~, idx] = sort([variables.char]);
+        variables = variables(idx);
+        % sort by line (in case of collision, this preserves char ordering):
+        [~, idx] = sort([variables.line]);
+        variables = variables(idx);
+    end
 end
 
 
@@ -86,7 +93,7 @@ function name = get_funcname(tokens)
     name = tokens(pos);
 end
 
-function arguments = get_funcargs(tokens)
+function arguments = get_funcarguments(tokens)
     start = search_token('pair', '(', tokens, 1, +1);
     stop = search_token('pair', ')', tokens, start, +1);
     arguments = tokens(start+1:stop-1);
