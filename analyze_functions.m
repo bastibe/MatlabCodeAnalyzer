@@ -93,6 +93,7 @@ function name = get_funcname(tokens)
     name = tokens(pos);
 end
 
+
 function arguments = get_funcarguments(tokens)
     start = search_token('pair', '(', tokens, 1, +1);
     stop = search_token('pair', ')', tokens, start, +1);
@@ -100,6 +101,7 @@ function arguments = get_funcarguments(tokens)
     % extract all identifiers:
     arguments = arguments(strcmp({arguments.type}, 'identifier'));
 end
+
 
 function returns = get_funreturns(tokens)
     start = search_token('keyword', 'function', tokens, 1, +1);
@@ -109,6 +111,7 @@ function returns = get_funreturns(tokens)
     % extract all identifiers:
     returns = returns(strcmp({returns.type}, 'identifier'));
 end
+
 
 function pos = search_token(name, text, tokens, pos, increment)
     if ~isempty(name) && ~isempty(text)
