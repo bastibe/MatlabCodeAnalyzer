@@ -40,3 +40,8 @@ assert(tokens(1).isEqual('identifier', 'help'))
 assert(tokens(3).isEqual('string', 'me'))
 assert(tokens(5).isEqual('string', 'please'))
 assert(tokens(7).isEqual('comment', '% test'))
+
+%% differentiate keyword end from variable end
+tokens = tokenize('if a(end); end')
+assert(tokens(5).isEqual('identifier', 'end'))
+assert(tokens(9).isEqual('keyword', 'end'))
