@@ -1,4 +1,6 @@
 function report = check(filename)
+    %CHECK a source file for problems
+
     [requiredFiles, requiredProducts] = ...
         matlab.codetools.requiredFilesAndProducts(filename);
     mlintInfo = checkcode(filename, '-cyc', '-id');
@@ -41,6 +43,7 @@ function report = check(filename)
             func_end = func.body(end).line;
 
             funcname_report = check_variables(func.name, func.body, 'function');
+            documentation_report = check_documentation(func);
             mlint_report = check_mlint_warnings(mlintInfo, func_start, func_end);
             indentation_report = check_indentation(func.body);
             line_length_report = check_line_length(func.body);
@@ -49,7 +52,7 @@ function report = check(filename)
             variable_report = check_variables(func.variables, func.body, 'variable');
             operator_report = check_operators(func.body);
             eval_report = check_eval(func.body);
-            all_reports = [argument_report return_report mlint_report ...
+            all_reports = [argument_report return_report mlint_report documentation_report ...
                            indentation_report line_length_report funcname_report ...
                            variable_report operator_report eval_report];
             if ~isempty(all_reports)
@@ -83,6 +86,46 @@ function print_report(report)
                     item.token.line, item.token.char, item.message);
         end
     end
+end
+
+
+function report = check_documentation(func)
+    doc_text = get_function_documentation(func.body);
+    report = struct('token', {}, 'severity', {}, 'message', {});
+    for var=func.arguments
+        if isempty(strfind(doc_text, var.text))
+            msg = sprintf('function argument ''%s'' is not mentioned in the documentation', ...
+                          var.text);
+            report = [report struct('token', var, ...
+                                    'severity', 2, ...
+                                    'message', msg)];
+        end
+    end
+    for var=func.returns
+        if isempty(strfind(doc_text, var.text))
+            msg = sprintf('return argument ''%s'' is not mentioned in the documentation', ...
+                          var.text);
+            report = [report struct('token', var, ...
+                                    'severity', 2, ...
+                                    'message', msg)];
+        end
+    end
+end
+
+
+function doc_text = get_function_documentation(tokens)
+    % skip to first comment
+    idx = 1;
+    while idx <= length(tokens) && ~tokens(idx).hasType('comment')
+        idx = idx + 1;
+    end
+    % extract documentation text
+    doc_types = {'comment' 'space' 'linebreak'};
+    start = idx;
+    while idx <= length(tokens) && tokens(idx).hasType(doc_types)
+        idx = idx + 1;
+    end
+    doc_text = horzcat([tokens(start:idx-1).text]);
 end
 
 
