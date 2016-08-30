@@ -88,6 +88,12 @@ end
 function report = check_documentation(func)
     doc_text = get_function_documentation(func.body);
     report = struct('token', {}, 'severity', {}, 'message', {});
+    if isempty(doc_text)
+        report = [report struct('token', func.body(1), ...
+                                'severity', 2, ...
+                                'message', 'there is no documentation')];
+        return
+    end
     for var=func.arguments
         if isempty(strfind(doc_text, var.text))
             msg = sprintf('function argument ''%s'' is not mentioned in the documentation', ...
