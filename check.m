@@ -37,37 +37,36 @@ function check(filename)
                 func.name.text, filename, func.name.line, func.name.char);
         fprintf('\n\n');
 
-        print_stats(func, mlintInfo);
+        stats = get_stats(func, mlintInfo);
+        print_stats(stats);
         fprintf('\n');
 
         func_start = func.body(1).line;
         func_end = func.body(end).line;
 
-        funcname_report = check_variables(func.name, func.body, 'function');
-        documentation_report = check_documentation(func);
-        comment_report = check_comments(func.body);
-        mlint_report = check_mlint_warnings(mlintInfo, func_start, func_end);
-        indentation_report = check_indentation(func.body);
-        line_length_report = check_line_length(func.body);
-        argument_report = check_variables(func.arguments, func.body, 'function argument');
-        return_report = check_variables(func.returns, func.body, 'return argument');
-        variable_report = check_variables(func.variables, func.body, 'variable');
-        operator_report = check_operators(func.body);
-        eval_report = check_eval(func.body);
-        all_reports = [argument_report return_report mlint_report documentation_report ...
-                       comment_report indentation_report line_length_report funcname_report ...
-                       variable_report operator_report eval_report];
-        if ~isempty(all_reports)
+
+        reports = [check_variables(func.name, func.body, 'function') ...
+                   check_documentation(func) ...
+                   check_comments(func.body) ...
+                   check_mlint_warnings(mlintInfo, func_start, func_end) ...
+                   check_indentation(func.body) ...
+                   check_line_length(func.body) ...
+                   check_variables(func.arguments, func.body, 'function argument') ...
+                   check_variables(func.returns, func.body, 'return argument') ...
+                   check_variables(func.variables, func.body, 'variable') ...
+                   check_operators(func.body) ...
+                   check_eval(func.body)];
+        if ~isempty(reports)
             % First, secondary sort by char
-            report_tokens = [all_reports.token];
+            report_tokens = [reports.token];
             [~, sort_idx] = sort([report_tokens.char]);
-            all_reports = all_reports(sort_idx);
+            reports = reports(sort_idx);
             % Second, primary sort by line (preserves secondary
             % sorting order in case of collisions)
-            report_tokens = [all_reports.token];
+            report_tokens = [reports.token];
             [~, sort_idx] = sort([report_tokens.line]);
-            all_reports = all_reports(sort_idx);
-            print_report(all_reports);
+            reports = reports(sort_idx);
+            print_report(reports);
         end
 
         fprintf('\n\n');
@@ -253,21 +252,12 @@ function [usage, spread] = get_variable_usage(name, tokens)
 end
 
 
-function print_stats(func, mlintInfo)
-    lines = split_lines(func.body);
-    num_lines = length(lines);
-    fprintf('    Number of lines: ');
-    print_evaluation(num_lines, 50, 100);
+function stats = get_stats(func, mlintInfo)
+    stats.num_lines = length(split_lines(func.body));
+    stats.num_arguments = length(func.arguments);
+    stats.num_variables = length(func.variables);
 
-    num_arguments = length(func.arguments);
-    fprintf('    Number of function arguments: ');
-    print_evaluation(num_arguments, 3, 5);
-
-    num_variables = length(func.variables);
-    fprintf('    Number of used variables: ');
-    print_evaluation(num_variables, 7, 15);
-
-    % print max indentation
+    % max indentation
     keywords = func.body(strcmp({func.body.type}, 'keyword'));
     indentation = 1;
     max_indentation = 0;
@@ -279,18 +269,33 @@ function print_stats(func, mlintInfo)
             indentation = indentation - 1;
         end
     end
-    fprintf('    Max level of nesting: ');
-    print_evaluation(max_indentation, 3, 5);
+    stats.max_indentation = max_indentation;
 
-    % print cyclomatic complexity
+    % cyclomatic complexity
     mlintInfo = mlintInfo(strcmp({mlintInfo.id}, 'CABE'));
     mlintInfo = mlintInfo([mlintInfo.line] == func.body(1).line);
     assert(length(mlintInfo) == 1);
     pattern = 'The McCabe complexity of ''(?<f>[^'']+)'' is (?<n>[0-9]+)';
     matches = regexp(mlintInfo.message, pattern, 'names');
-    complexity = str2num(matches.n);
+    stats.complexity = str2num(matches.n);
+end
+
+
+function print_stats(stats)
+    fprintf('    Number of lines: ');
+    print_evaluation(stats.num_lines, 50, 100);
+
+    fprintf('    Number of function arguments: ');
+    print_evaluation(stats.num_arguments, 3, 5);
+
+    fprintf('    Number of used variables: ');
+    print_evaluation(stats.num_variables, 7, 15);
+
+    fprintf('    Max level of nesting: ');
+    print_evaluation(stats.max_indentation, 3, 5);
+
     fprintf('    Cyclomatic complexity: ');
-    print_evaluation(complexity, 10, 15);
+    print_evaluation(stats.complexity, 10, 15);
 end
 
 
