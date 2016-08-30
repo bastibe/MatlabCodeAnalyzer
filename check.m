@@ -1,5 +1,6 @@
 function report = check(filename)
-    [requiredFiles, requiredProducts] = matlab.codetools.requiredFilesAndProducts(filename);
+    [requiredFiles, requiredProducts] = ...
+        matlab.codetools.requiredFilesAndProducts(filename);
     mlintInfo = checkcode(filename, '-cyc', '-id');
 
     text = fileread(filename);
@@ -31,47 +32,40 @@ function report = check(filename)
         end
 
         for func=func_report
-            fprintf('  Function <strong>%s</strong> (%s:%i:%i): ', func.name.text, filename, func.name.line, func.name.char);
+            fprintf('  Function <strong>%s</strong> (%s:%i:%i): ', ...
+                    func.name.text, filename, func.name.line, func.name.char);
             print_shadow(func.name.text);
             fprintf('\n\n');
 
-            line_report = analyze_lines(func.body);
-            for item=line_report
-                fprintf('    Line %i: [\b%s]\b\n', item.line, item.message);
-            end
-            if ~isempty(line_report)
-                fprintf('\n');
-            end
+            line_report = check_indentation(func.body);
+            print_line_report(line_report);
+
+            line_report = check_line_length(func.body);
+            print_line_report(line_report);
 
             print_complexity(mlintInfo, func.body(1).line);
             print_mlint_warnings(mlintInfo, func.body(1).line, func.body(end).line);
 
-            if isempty(func.arguments)
-                fprintf('    No Arguments\n\n');
-            else
-                fprintf('    Arguments:\n');
-                print_var_list(func.arguments, 6);
-                fprintf('\n');
-            end
-
-            if isempty(func.returns)
-                fprintf('    No Return Value\n\n');
-            else
-                fprintf('    Returns:\n');
-                print_var_list(func.returns, 6);
-                fprintf('\n');
-            end
-
-            if isempty(func.variables)
-                fprintf('    No Variables\n\n');
-            else
-                fprintf('    Variables:\n');
-                print_var_list(func.variables, 6);
-                fprintf('\n');
-            end
+            print_var_list(func.arguments, 6, 'Arguments');
+            print_var_list(func.returns, 6, 'Returns');
+            print_var_list(func.variables, 6, 'Variables');
         end
     else
         report = func_report;
+    end
+end
+
+
+function print_line_report(line_report)
+    for item=line_report
+        if item.severity == 2
+            fprintf('    Line %i: [\b%s]\b\n', item.line, item.message);
+        else
+            fprintf('    Line %i: %s\n', item.line, item.message);
+        end
+    end
+    if ~isempty(line_report)
+        fprintf('\n');
     end
 end
 
@@ -116,11 +110,17 @@ function print_mlint_warnings(mlintInfo, func_start, func_stop)
 end
 
 
-function print_var_list(varlist, indent)
-    for var=varlist
-        fprintf(repmat(' ', 1, indent));
-        fprintf('%s (%i:%i) ', var.text, var.line, var.char);
-        print_shadow(var.text);
+function print_var_list(varlist, indent, label)
+    if isempty(varlist)
+        fprintf('    No %s\n\n', label);
+    else
+        fprintf('    %s:\n', label);
+        for var=varlist
+            fprintf(repmat(' ', 1, indent));
+            fprintf('%s (%i:%i) ', var.text, var.line, var.char);
+            print_shadow(var.text);
+            fprintf('\n');
+        end
         fprintf('\n');
     end
 end
@@ -140,62 +140,118 @@ function yesNo = does_shadow(varname)
     shadows = which(varname, '-all');
     for idx=1:length(shadows)
         shadow = shadows{idx};
-        if (length(shadow) >= length(matlabroot) && strcmp(shadow(1:length(matlabroot)), matlabroot)) || ...
-           (length(shadow) >= length(builtinstr) && strcmp(shadow(1:length(builtinstr)), builtinstr)) || ...
-           (length(shadow) >= length(builtinfun) && strcmp(shadow(end-length(builtinfun)+1:end), builtinfun))
+        if ( length(shadow) >= length(matlabroot) && ...
+             strcmp(shadow(1:length(matlabroot)), matlabroot) ) || ...
+           ( length(shadow) >= length(builtinstr) && ...
+             strcmp(shadow(1:length(builtinstr)), builtinstr) ) || ...
+           ( length(shadow) >= length(builtinfun) && ...
+             strcmp(shadow(end-length(builtinfun)+1:end), builtinfun) )
             yesNo = true;
             return
         end
     end
 end
 
+function report = check_line_length(tokens)
+    report = struct('line', {}, 'message', {}, 'severity', {});
+    lines = line_list(tokens);
+    for line_idx=1:length(lines)
+        line_tokens = lines{line_idx};
+        line_text = horzcat([line_tokens.text]);
+        if length(line_text) > 75
+            report = [report struct('line', line_tokens(1).line, ...
+                                    'message', 'line very long', ...
+                                    'severity', 1)];
+        elseif length(line_text) > 90
+            report = [report struct('line', line_tokens(1).line, ...
+                                    'message', 'line too long', ...
+                                    'severity', 2)];
+        end
+    end
+end
 
-function report = analyze_lines(tokens)
+
+function report = check_indentation(tokens)
     beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
                   'events' 'properties' 'enumeration' 'methods' ...
                   'function'};
+    middles = {'else' 'elseif' 'case'};
+    ends = {'end'};
 
-    report = struct('line', {}, 'message', {});
+    report = struct('line', {}, 'message', {}, 'severity', {});
 
-    previous_line = Token('dummy', '', -1, -1);
-    indentation = tokens(1).char;
-    line_start = 1;
-    line_indentation = indentation;
-    for pos = 1:length(tokens)
-        token = tokens(pos);
-        % count the 'end's to figure out the correct indentation
-        if token.isEqual('keyword', beginnings)
-            indentation = indentation + 4;
-        elseif token.isEqual('keyword', 'end')
-            indentation = indentation - 4;
+    lines = line_list(tokens);
+    previous_indent = get_line_indentation(lines{1});
+
+    for line_idx=1:length(lines)
+        line_tokens = lines{line_idx};
+        if line_idx > 1
+            previous_line = lines{line_idx-1};
+            is_continuation = any(strcmp({previous_line.text}, '...'));
+        else
+            is_continuation = false;
         end
-        if token.isEqual('linebreak', sprintf('\n'))
-            line = tokens(line_start:pos-1);
+
+        if isempty(line_tokens)
+            continue
+        end
+
+        first_nonspace = get_first_nonspace(line_tokens);
+
+        if first_nonspace.isEqual('keyword', beginnings)
+            expected_indent = previous_indent;
+            previous_indent = previous_indent + 4;
+        elseif first_nonspace.isEqual('keyword', middles)
+            expected_indent = previous_indent - 4;
+        elseif first_nonspace.isEqual('keyword', ends)
+            expected_indent = previous_indent - 4;
+            previous_indent = previous_indent - 4;
+        elseif is_continuation
+            % same rules as in previous line
+        else
+            expected_indent = previous_indent;
+        end
+
+        current_indent = get_line_indentation(line_tokens);
+
+        if ~is_continuation && current_indent ~= expected_indent
+            report = [report struct('line', line_tokens(1).line, ...
+                                    'message', 'incorrect indentation!', ...
+                                    'severity', 2)];
+        elseif is_continuation && current_indent <= expected_indent
+            report = [report struct('line', line_tokens(1).line, ...
+                                    'message', 'not enough indentation!', ...
+                                    'severity', 2)];
+        end
+    end
+end
+
+
+function indentation = get_line_indentation(tokens)
+    if tokens(1).hasType('space')
+        indentation = length(tokens(1).text);
+    else
+        indentation = 0;
+    end
+end
+
+
+function token = get_first_nonspace(tokens)
+    idx = 1;
+    while idx < length(tokens) && tokens(idx).hasType('space')
+        idx = idx + 1;
+    end
+    token = tokens(idx);
+end
+
+
+function lines = line_list(tokens)
+    lines = {};
+    line_start = 1;
+    for pos=1:length(tokens)
+        if tokens(pos).isEqual('linebreak', sprintf('\n'))
+            lines = [lines {tokens(line_start:pos-1)}];
             line_start = pos + 1;
-            line_text = horzcat([line.text]);
-            if isempty(line)
-                continue
-            end
-            if length(line_text) > 75
-                report = [report struct('line', line(1).line, ...
-                                        'message', 'line too long')];
-            end
-            if line(1).hasType('space') && ~any(strcmp({previous_line.text}, '...')) && ...
-               ~( ( ~line(2).isEqual('keyword', {'else', 'elseif', 'case', 'end'}) && ...
-                    length(line(1).text) == line_indentation ) || ...
-                  ( line(2).isEqual('keyword', {'else', 'elseif', 'case', 'end'}) && ...
-                    length(line(1).text) == line_indentation-4 ) )
-                report = [report struct('line', line(1).line, ...
-                                        'message', 'incorrect indentation!')];
-            elseif line(1).hasType('space') && any(strcmp({previous_line.text}, '...')) && ...
-                   length(line(1).text) <= line_indentation
-                report = [report struct('line', line(1).line, ...
-                                        'message', 'continuation line with incorrect indentation!')];
-            end
-            if ~any(strcmp({line.text}, '...'))
-                line_indentation = indentation;
-            end
-            previous_line = line;
         end
     end
 end
