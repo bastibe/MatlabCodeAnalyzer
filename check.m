@@ -37,7 +37,9 @@ function check(filename)
                 func.name.text, filename, func.name.line, func.name.char);
         fprintf('\n\n');
 
-        print_complexity(mlintInfo, func.body(1).line);
+        print_stats(func, mlintInfo);
+        fprintf('\n');
+
         func_start = func.body(1).line;
         func_end = func.body(end).line;
 
@@ -251,36 +253,54 @@ function [usage, spread] = get_variable_usage(name, tokens)
 end
 
 
-function print_line_report(line_report)
-    for item=line_report
-        if item.severity == 2
-            fprintf('    Line %i: [\b%s]\b\n', item.line, item.message);
-        else
-            fprintf('    Line %i: %s\n', item.line, item.message);
+function print_stats(func, mlintInfo)
+    lines = split_lines(func.body);
+    num_lines = length(lines);
+    fprintf('    Number of lines: ');
+    print_evaluation(num_lines, 50, 100);
+
+    num_arguments = length(func.arguments);
+    fprintf('    Number of function arguments: ');
+    print_evaluation(num_arguments, 3, 5);
+
+    num_variables = length(func.variables);
+    fprintf('    Number of used variables: ');
+    print_evaluation(num_variables, 7, 15);
+
+    % print max indentation
+    keywords = func.body(strcmp({func.body.type}, 'keyword'));
+    indentation = 1;
+    max_indentation = 0;
+    for keyword=keywords
+        if keyword.hasText({'if' 'for' 'parfor' 'while' 'switch'})
+            indentation = indentation + 1;
+            max_indentation = max(max_indentation, indentation);
+        elseif keyword.hasText('end')
+            indentation = indentation - 1;
         end
     end
+    fprintf('    Max level of nesting: ');
+    print_evaluation(max_indentation, 3, 5);
+
+    % print cyclomatic complexity
+    mlintInfo = mlintInfo(strcmp({mlintInfo.id}, 'CABE'));
+    mlintInfo = mlintInfo([mlintInfo.line] == func.body(1).line);
+    assert(length(mlintInfo) == 1);
+    pattern = 'The McCabe complexity of ''(?<f>[^'']+)'' is (?<n>[0-9]+)';
+    matches = regexp(mlintInfo.message, pattern, 'names');
+    complexity = str2num(matches.n);
+    fprintf('    Cyclomatic complexity: ');
+    print_evaluation(complexity, 10, 15);
 end
 
 
-function print_complexity(mlintInfo, func_start)
-    mlintInfo = mlintInfo(strcmp({mlintInfo.id}, 'CABE'));
-    mlintInfo = mlintInfo([mlintInfo.line] == func_start);
-    if isempty(mlintInfo)
-        return
-    end
-    assert(length(mlintInfo) == 1);
-
-    pattern = 'The McCabe complexity of ''(?<f>[^'']+)'' is (?<n>[0-9]+)';
-
-    matches = regexp(mlintInfo.message, pattern, 'names');
-    complexity = str2num(matches.n);
-    fprintf('    McCabe complexity: %i ', complexity);
-    if complexity < 10
-        fprintf('(good)\n');
-    elseif complexity < 15
-        fprintf('(high)\n');
+function print_evaluation(value, low_thr, high_thr)
+    if value < low_thr
+        fprintf('%i (good)\n', value);
+    elseif value < high_thr
+        fprintf('%i (high)\n', value);
     else
-        fprintf('[\b(too high)]\b\n');
+        fprintf('%i [\b(too high)]\b\n', value);
     end
 end
 
