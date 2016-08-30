@@ -52,10 +52,62 @@ function report = check(filename)
             variable_report = check_variables(func.variables, func.body);
             print_variable_report('variable', variable_report);
 
+            operator_report = check_operators(func.body);
+            print_operator_report(operator_report);
+
             fprintf('\n\n');
         end
     else
         report = func_report;
+    end
+end
+
+
+function print_operator_report(op_report)
+    for item=op_report
+        if item.severity == 2
+            fprintf('    Line %i, col %i: [\b%s]\b\n', ...
+                    item.operator.line, item.operator.char, item.message);
+        else
+            fprintf('    Line %i, col %i: %s\n', ...
+                    item.operator.line, item.operator.char, item.message);
+        end
+    end
+end
+
+
+function report = check_operators(tokens)
+    space_around_operators = { '>' '<' '==' '>=' '<=' '~=' ...
+                               '=' '||' '&&' '|' '&'};
+    space_after_operators = { ',' ';' };
+    space_before_operators = { '@' '...' };
+
+    report = struct('operator', {}, 'severity', {}, 'message', {});
+    op_indices = find(strcmp({tokens.type}, 'punctuation'));
+    for idx=op_indices
+        has_space_before = idx > 1 && tokens(idx-1).hasType('space');
+        has_space_after = idx < length(tokens) && tokens(idx+1).hasType('space');
+        has_newline_after = idx < length(tokens) && ...
+                            tokens(idx+1).hasText(sprintf('\n'));
+        if tokens(idx).hasText(space_around_operators) && ...
+           (~has_space_before || ~has_space_after)
+           msg = sprintf('no spaces around operator ''%s''', tokens(idx).text);
+            report = [report struct('operator', tokens(idx), ...
+                                    'severity', 1, ...
+                                    'message', msg)];
+        elseif tokens(idx).hasText(space_after_operators) && ...
+               ~has_space_after && ~has_newline_after
+            msg = sprintf('no spaces after operator ''%s''', tokens(idx).text);
+            report = [report struct('operator', tokens(idx), ...
+                                    'severity', 1, ...
+                                    'message', msg)];
+        elseif tokens(idx).hasText(space_before_operators) && ...
+               ~has_space_before
+            msg = sprintf('no spaces before operator ''%s''', tokens(idx).text);
+            report = [report struct('operator', tokens(idx), ...
+                                    'severity', 1, ...
+                                    'message', msg)];
+        end
     end
 end
 
