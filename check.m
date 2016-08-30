@@ -1,4 +1,4 @@
-function report = check(filename)
+function check(filename)
     %CHECK a source file for problems
 
     [requiredFiles, requiredProducts] = ...
@@ -9,69 +9,65 @@ function report = check(filename)
     tokens = tokenize(text);
     func_report = analyze_functions(tokens);
 
-    if nargout == 0
-        fprintf('Code Analysis for <strong>%s</strong>\n\n', filename);
+    fprintf('Code Analysis for <strong>%s</strong>\n\n', filename);
 
-        fprintf('  Depends upon: ');
-        for idx=1:length(requiredFiles)
-            [~, basename, ext] = fileparts(requiredFiles{idx});
-            fprintf('%s%s', basename, ext);
-            if idx < length(requiredFiles)
-                fprintf(', ');
-            else
-                fprintf('\n');
-            end
+    fprintf('  Depends upon: ');
+    for idx=1:length(requiredFiles)
+        [~, basename, ext] = fileparts(requiredFiles{idx});
+        fprintf('%s%s', basename, ext);
+        if idx < length(requiredFiles)
+            fprintf(', ');
+        else
+            fprintf('\n');
         end
+    end
 
-        fprintf('  Depends upon: ');
-        for idx=1:length(requiredProducts)
-            fprintf('%s%s', requiredProducts(idx).Name);
-            if idx < length(requiredProducts)
-                fprintf(', ');
-            else
-                fprintf('\n\n');
-            end
-        end
-
-        for func=func_report
-            fprintf('  Function <strong>%s</strong> (%s:%i:%i): ', ...
-                    func.name.text, filename, func.name.line, func.name.char);
-            fprintf('\n\n');
-
-            print_complexity(mlintInfo, func.body(1).line);
-            func_start = func.body(1).line;
-            func_end = func.body(end).line;
-
-            funcname_report = check_variables(func.name, func.body, 'function');
-            documentation_report = check_documentation(func);
-            mlint_report = check_mlint_warnings(mlintInfo, func_start, func_end);
-            indentation_report = check_indentation(func.body);
-            line_length_report = check_line_length(func.body);
-            argument_report = check_variables(func.arguments, func.body, 'function argument');
-            return_report = check_variables(func.returns, func.body, 'return argument');
-            variable_report = check_variables(func.variables, func.body, 'variable');
-            operator_report = check_operators(func.body);
-            eval_report = check_eval(func.body);
-            all_reports = [argument_report return_report mlint_report documentation_report ...
-                           indentation_report line_length_report funcname_report ...
-                           variable_report operator_report eval_report];
-            if ~isempty(all_reports)
-                % First, secondary sort by char
-                report_tokens = [all_reports.token];
-                [~, sort_idx] = sort([report_tokens.char]);
-                all_reports = all_reports(sort_idx);
-                % Second, primary sort by line (preserves secondary
-                % sorting order in case of collisions)
-                report_tokens = [all_reports.token];
-                [~, sort_idx] = sort([report_tokens.line]);
-                all_reports = all_reports(sort_idx);
-                print_report(all_reports);
-            end
-
+    fprintf('  Depends upon: ');
+    for idx=1:length(requiredProducts)
+        fprintf('%s%s', requiredProducts(idx).Name);
+        if idx < length(requiredProducts)
+            fprintf(', ');
+        else
             fprintf('\n\n');
         end
-    else
-        % report = func_report;
+    end
+
+    for func=func_report
+        fprintf('  Function <strong>%s</strong> (%s:%i:%i): ', ...
+                func.name.text, filename, func.name.line, func.name.char);
+        fprintf('\n\n');
+
+        print_complexity(mlintInfo, func.body(1).line);
+        func_start = func.body(1).line;
+        func_end = func.body(end).line;
+
+        funcname_report = check_variables(func.name, func.body, 'function');
+        documentation_report = check_documentation(func);
+        mlint_report = check_mlint_warnings(mlintInfo, func_start, func_end);
+        indentation_report = check_indentation(func.body);
+        line_length_report = check_line_length(func.body);
+        argument_report = check_variables(func.arguments, func.body, 'function argument');
+        return_report = check_variables(func.returns, func.body, 'return argument');
+        variable_report = check_variables(func.variables, func.body, 'variable');
+        operator_report = check_operators(func.body);
+        eval_report = check_eval(func.body);
+        all_reports = [argument_report return_report mlint_report documentation_report ...
+                       indentation_report line_length_report funcname_report ...
+                       variable_report operator_report eval_report];
+        if ~isempty(all_reports)
+            % First, secondary sort by char
+            report_tokens = [all_reports.token];
+            [~, sort_idx] = sort([report_tokens.char]);
+            all_reports = all_reports(sort_idx);
+            % Second, primary sort by line (preserves secondary
+            % sorting order in case of collisions)
+            report_tokens = [all_reports.token];
+            [~, sort_idx] = sort([report_tokens.line]);
+            all_reports = all_reports(sort_idx);
+            print_report(all_reports);
+        end
+
+        fprintf('\n\n');
     end
 end
 
@@ -404,8 +400,4 @@ function lines = line_list(tokens)
             line_start = pos + 1;
         end
     end
-end
-
-
-function x = sum()
 end
