@@ -57,7 +57,7 @@ function tokens = tokenize(text)
             else
                 add_token('identifier', symbol);
                 % decide whether this is the start of a command
-                if is_first
+                if is_first & nesting == 0
                     is_first = false;
                     saved_loc = loc;
                     first_space = skip(space);
