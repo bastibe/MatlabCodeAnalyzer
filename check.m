@@ -43,6 +43,7 @@ function check(filename)
 
         funcname_report = check_variables(func.name, func.body, 'function');
         documentation_report = check_documentation(func);
+        comment_report = check_comments(func.body);
         mlint_report = check_mlint_warnings(mlintInfo, func_start, func_end);
         indentation_report = check_indentation(func.body);
         line_length_report = check_line_length(func.body);
@@ -52,7 +53,7 @@ function check(filename)
         operator_report = check_operators(func.body);
         eval_report = check_eval(func.body);
         all_reports = [argument_report return_report mlint_report documentation_report ...
-                       indentation_report line_length_report funcname_report ...
+                       comment_report indentation_report line_length_report funcname_report ...
                        variable_report operator_report eval_report];
         if ~isempty(all_reports)
             % First, secondary sort by char
@@ -81,6 +82,35 @@ function print_report(report)
             fprintf('    Line %i, col %i: %s\n', ...
                     item.token.line, item.token.char, item.message);
         end
+    end
+end
+
+
+function report = check_comments(tokens)
+    line_tokens = split_lines(tokens);
+    num_lines = length(line_tokens);
+    num_comments = 0;
+    for line=line_tokens
+        line = line{1};
+        if any(strcmp({line.type}, 'comment'))
+            num_comments = num_comments + 1;
+        end
+    end
+
+    if num_comments/num_lines < 0.1
+        msg = sprintf('too few comments (%i comments for %i lines of code)', ...
+                      num_comments, num_lines);
+        report = struct('token', tokens(1), ...
+                        'severity', 2, ...
+                        'message', msg);
+    elseif num_comments/num_lines < 0.2
+        msg = sprintf('very few comments (%i comments for %i lines of code)', ...
+                      num_comments, num_lines);
+        report = struct('token', tokens(1), ...
+                        'severity', 1, ...
+                        'message', msg);
+    else
+        report = struct('token', {}, 'severity', {}, 'message', {});
     end
 end
 
@@ -116,18 +146,22 @@ end
 
 
 function doc_text = get_function_documentation(tokens)
-    % skip to first comment
+    % skip function declaration
     idx = 1;
-    while idx <= length(tokens) && ~tokens(idx).hasType('comment')
+    while idx <= length(tokens) && ~tokens(idx).isEqual('pair', ')')
         idx = idx + 1;
     end
+    idx = idx + 1;
+
     % extract documentation text
     doc_types = {'comment' 'space' 'linebreak'};
     start = idx;
     while idx <= length(tokens) && tokens(idx).hasType(doc_types)
         idx = idx + 1;
     end
-    doc_text = horzcat([tokens(start:idx-1).text]);
+    comment_tokens = tokens(start:idx-1);
+    comment_tokens = tokens(strcmp({comment_tokens.type}, 'comment'));
+    doc_text = horzcat([comment_tokens.text]);
 end
 
 
@@ -298,7 +332,7 @@ end
 
 function report = check_line_length(tokens)
     report = struct('token', {}, 'message', {}, 'severity', {});
-    lines = line_list(tokens);
+    lines = split_lines(tokens);
     for line_idx=1:length(lines)
         line_tokens = lines{line_idx};
         line_text = horzcat([line_tokens.text]);
@@ -328,7 +362,7 @@ function report = check_indentation(tokens)
 
     report = struct('token', {}, 'message', {}, 'severity', {});
 
-    lines = line_list(tokens);
+    lines = split_lines(tokens);
     previous_indent = get_line_indentation(lines{1});
 
     for line_idx=1:length(lines)
@@ -397,7 +431,7 @@ function token = get_first_nonspace(tokens)
 end
 
 
-function lines = line_list(tokens)
+function lines = split_lines(tokens)
     lines = {};
     line_start = 1;
     for pos=1:length(tokens)
