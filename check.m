@@ -34,44 +34,66 @@ function report = check(filename)
         for func=func_report
             fprintf('  Function <strong>%s</strong> (%s:%i:%i): ', ...
                     func.name.text, filename, func.name.line, func.name.char);
-            print_shadow(func.name.text);
             fprintf('\n\n');
 
             print_complexity(mlintInfo, func.body(1).line);
-            print_mlint_warnings(mlintInfo, func.body(1).line, func.body(end).line);
+            func_start = func.body(1).line;
+            func_end = func.body(end).line;
 
-            line_report = check_indentation(func.body);
-            print_line_report(line_report);
-            line_report = check_line_length(func.body);
-            print_line_report(line_report);
-
-            variable_report = check_variables(func.arguments, func.body);
-            print_variable_report('function argument', variable_report);
-            variable_report = check_variables(func.returns, func.body);
-            print_variable_report('output argument', variable_report);
-            variable_report = check_variables(func.variables, func.body);
-            print_variable_report('variable', variable_report);
-
+            funcname_report = check_variables(func.name, func.body, 'function');
+            mlint_report = check_mlint_warnings(mlintInfo, func_start, func_end);
+            indentation_report = check_indentation(func.body);
+            line_length_report = check_line_length(func.body);
+            argument_report = check_variables(func.arguments, func.body, 'function argument');
+            return_report = check_variables(func.returns, func.body, 'return argument');
+            variable_report = check_variables(func.variables, func.body, 'variable');
             operator_report = check_operators(func.body);
-            print_operator_report(operator_report);
+            eval_report = check_eval(func.body);
+            all_reports = [argument_report return_report mlint_report ...
+                           indentation_report line_length_report funcname_report ...
+                           variable_report operator_report eval_report];
+            if ~isempty(all_reports)
+                % First, secondary sort by char
+                report_tokens = [all_reports.token];
+                [~, sort_idx] = sort([report_tokens.char]);
+                all_reports = all_reports(sort_idx);
+                % Second, primary sort by line (preserves secondary
+                % sorting order in case of collisions)
+                report_tokens = [all_reports.token];
+                [~, sort_idx] = sort([report_tokens.line]);
+                all_reports = all_reports(sort_idx);
+                print_report(all_reports);
+            end
 
             fprintf('\n\n');
         end
     else
-        report = func_report;
+        % report = func_report;
     end
 end
 
 
-function print_operator_report(op_report)
-    for item=op_report
+function print_report(report)
+    for item=report
         if item.severity == 2
             fprintf('    Line %i, col %i: [\b%s]\b\n', ...
-                    item.operator.line, item.operator.char, item.message);
+                    item.token.line, item.token.char, item.message);
         else
             fprintf('    Line %i, col %i: %s\n', ...
-                    item.operator.line, item.operator.char, item.message);
+                    item.token.line, item.token.char, item.message);
         end
+    end
+end
+
+
+function report = check_eval(tokens)
+    report = struct('token', {}, 'severity', {}, 'message', {});
+    eval_tokens = tokens(strcmp({tokens.text}, 'eval') & ...
+                         strcmp({tokens.type}, 'identifier'));
+    for t = eval_tokens
+        report = [report struct('token', t, ...
+                                'severity', 2, ...
+                                'message', 'Eval should never be used')];
     end
 end
 
@@ -82,7 +104,7 @@ function report = check_operators(tokens)
     space_after_operators = { ',' ';' };
     space_before_operators = { '@' '...' };
 
-    report = struct('operator', {}, 'severity', {}, 'message', {});
+    report = struct('token', {}, 'severity', {}, 'message', {});
     op_indices = find(strcmp({tokens.type}, 'punctuation'));
     for idx=op_indices
         has_space_before = idx > 1 && tokens(idx-1).hasType('space');
@@ -92,19 +114,19 @@ function report = check_operators(tokens)
         if tokens(idx).hasText(space_around_operators) && ...
            (~has_space_before || ~has_space_after)
            msg = sprintf('no spaces around operator ''%s''', tokens(idx).text);
-            report = [report struct('operator', tokens(idx), ...
+            report = [report struct('token', tokens(idx), ...
                                     'severity', 1, ...
                                     'message', msg)];
         elseif tokens(idx).hasText(space_after_operators) && ...
                ~has_space_after && ~has_newline_after
             msg = sprintf('no spaces after operator ''%s''', tokens(idx).text);
-            report = [report struct('operator', tokens(idx), ...
+            report = [report struct('token', tokens(idx), ...
                                     'severity', 1, ...
                                     'message', msg)];
         elseif tokens(idx).hasText(space_before_operators) && ...
                ~has_space_before
             msg = sprintf('no spaces before operator ''%s''', tokens(idx).text);
-            report = [report struct('operator', tokens(idx), ...
+            report = [report struct('token', tokens(idx), ...
                                     'severity', 1, ...
                                     'message', msg)];
         end
@@ -112,38 +134,28 @@ function report = check_operators(tokens)
 end
 
 
-function print_variable_report(var_type, var_report)
-    for item=var_report
-        if item.severity == 2
-            fprintf('    %s ''%s'': [\b%s]\b\n', var_type, item.var.text, item.message);
-        else
-            fprintf('    %s ''%s'': %s\n', var_type, item.var.text, item.message);
-        end
-    end
-end
-
-
-function report = check_variables(varlist, scope_tokens)
-    report = struct('var', {}, 'severity', {}, 'message', {});
+function report = check_variables(varlist, scope_tokens, description)
+    report = struct('token', {}, 'severity', {}, 'message', {});
     for var=varlist
         if does_shadow(var.text)
-            report = [report struct('var', var, ...
+            msg = sprintf('%s ''%s'' shadows a built-in', description, var.text);
+            report = [report struct('token', var, ...
                                     'severity', 2, ...
-                                    'message', 'Shadows a built-in!')];
+                                    'message', msg)];
         end
         [usage, spread] = get_variable_usage(var.text, scope_tokens);
         if (spread > 3  && length(var.text) <= 3) || ...
            (spread > 10 && length(var.text) <= 5)
-            msg = sprintf('name very short (used %i times across %i lines)', ...
-                          usage, spread);
-            report = [report struct('var', var, ...
+            msg = sprintf('%s ''%s'' is very short (used %i times across %i lines)', ...
+                          description, var.text, usage, spread);
+            report = [report struct('token', var, ...
                                     'severity', 1, ...
                                     'message', msg)];
         elseif (spread > 5  && length(var.text) <= 3) || ...
                (spread > 15 && length(var.text) <= 5)
-            msg = sprintf('name too short (used %i times across %i lines)', ...
-                          usage, spread);
-            report = [report struct('var', var, ...
+            msg = sprintf('%s ''%s'' is too short (used %i times across %i lines)', ...
+                          description, var.text, usage, spread);
+            report = [report struct('token', var, ...
                                     'severity', 2, ...
                                     'message', msg)];
         end
@@ -194,18 +206,21 @@ function print_complexity(mlintInfo, func_start)
 end
 
 
-function print_mlint_warnings(mlintInfo, func_start, func_stop)
+function report = check_mlint_warnings(mlintInfo, func_start, func_stop)
+    report = struct('token', {}, 'severity', {}, 'message', {});
+
     mlintInfo = mlintInfo([mlintInfo.line] >= func_start);
     mlintInfo = mlintInfo([mlintInfo.line] <= func_stop);
     mlintInfo = mlintInfo(~strcmp({mlintInfo.id}, 'CABE'));
     if isempty(mlintInfo)
         return
     end
-    fprintf('    MLint messages:\n');
     for idx=1:length(mlintInfo)
         info = mlintInfo(idx);
-        fprintf('      [\b%s]\b (%i:%i)\n', ...
-                info.message, info.line, info.column(1));
+        token = Token('special', 'mlint warning', info.line, info.column(1));
+        report = [report struct('token', token, ...
+                                'severity', 2, ...
+                                'message', info.message)];
     end
 end
 
@@ -237,17 +252,21 @@ function yesNo = does_shadow(varname)
 end
 
 function report = check_line_length(tokens)
-    report = struct('line', {}, 'message', {}, 'severity', {});
+    report = struct('token', {}, 'message', {}, 'severity', {});
     lines = line_list(tokens);
     for line_idx=1:length(lines)
         line_tokens = lines{line_idx};
         line_text = horzcat([line_tokens.text]);
         if length(line_text) > 75
-            report = [report struct('line', line_tokens(1).line, ...
+            token = Token('special', 'line warning', line_tokens(1).line, ...
+                          length(line_text));
+            report = [report struct('token', token, ...
                                     'message', 'line very long', ...
                                     'severity', 1)];
         elseif length(line_text) > 90
-            report = [report struct('line', line_tokens(1).line, ...
+            token = Token('special', 'line warning', line_tokens(1).line, ...
+                          length(line_text));
+            report = [report struct('token', token, ...
                                     'message', 'line too long', ...
                                     'severity', 2)];
         end
@@ -262,7 +281,7 @@ function report = check_indentation(tokens)
     middles = {'else' 'elseif' 'case'};
     ends = {'end'};
 
-    report = struct('line', {}, 'message', {}, 'severity', {});
+    report = struct('token', {}, 'message', {}, 'severity', {});
 
     lines = line_list(tokens);
     previous_indent = get_line_indentation(lines{1});
@@ -299,11 +318,15 @@ function report = check_indentation(tokens)
         current_indent = get_line_indentation(line_tokens);
 
         if ~is_continuation && current_indent ~= expected_indent
-            report = [report struct('line', line_tokens(1).line, ...
+            token = Token('special', 'indentation warning', ...
+                          line_tokens(1).line, line_tokens(1).char);
+            report = [report struct('token', token, ...
                                     'message', 'incorrect indentation!', ...
                                     'severity', 2)];
         elseif is_continuation && current_indent <= expected_indent
-            report = [report struct('line', line_tokens(1).line, ...
+            token = Token('special', 'indentation warning', ...
+                          line_tokens(1).line, line_tokens(1).char);
+            report = [report struct('token', token, ...
                                     'message', 'not enough indentation!', ...
                                     'severity', 2)];
         end
@@ -338,4 +361,8 @@ function lines = line_list(tokens)
             line_start = pos + 1;
         end
     end
+end
+
+
+function x = sum()
 end
