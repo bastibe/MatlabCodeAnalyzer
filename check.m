@@ -37,22 +37,74 @@ function report = check(filename)
             print_shadow(func.name.text);
             fprintf('\n\n');
 
-            line_report = check_indentation(func.body);
-            print_line_report(line_report);
-
-            line_report = check_line_length(func.body);
-            print_line_report(line_report);
-
             print_complexity(mlintInfo, func.body(1).line);
             print_mlint_warnings(mlintInfo, func.body(1).line, func.body(end).line);
 
-            print_var_list(func.arguments, 6, 'Arguments');
-            print_var_list(func.returns, 6, 'Returns');
-            print_var_list(func.variables, 6, 'Variables');
+            line_report = check_indentation(func.body);
+            print_line_report(line_report);
+            line_report = check_line_length(func.body);
+            print_line_report(line_report);
+
+            variable_report = check_variables(func.arguments, func.body);
+            print_variable_report('function argument', variable_report);
+            variable_report = check_variables(func.returns, func.body);
+            print_variable_report('output argument', variable_report);
+            variable_report = check_variables(func.variables, func.body);
+            print_variable_report('variable', variable_report);
+
+            fprintf('\n\n');
         end
     else
         report = func_report;
     end
+end
+
+
+function print_variable_report(var_type, var_report)
+    for item=var_report
+        if item.severity == 2
+            fprintf('    %s ''%s'': [\b%s]\b\n', var_type, item.var.text, item.message);
+        else
+            fprintf('    %s ''%s'': %s\n', var_type, item.var.text, item.message);
+        end
+    end
+end
+
+
+function report = check_variables(varlist, scope_tokens)
+    report = struct('var', {}, 'severity', {}, 'message', {});
+    for var=varlist
+        if does_shadow(var.text)
+            report = [report struct('var', var, ...
+                                    'severity', 2, ...
+                                    'message', 'Shadows a built-in!')];
+        end
+        [usage, spread] = get_variable_usage(var.text, scope_tokens);
+        if (spread > 3  && length(var.text) <= 3) || ...
+           (spread > 10 && length(var.text) <= 5)
+            msg = sprintf('name very short (used %i times across %i lines)', ...
+                          usage, spread);
+            report = [report struct('var', var, ...
+                                    'severity', 1, ...
+                                    'message', msg)];
+        elseif (spread > 5  && length(var.text) <= 3) || ...
+               (spread > 15 && length(var.text) <= 5)
+            msg = sprintf('name too short (used %i times across %i lines)', ...
+                          usage, spread);
+            report = [report struct('var', var, ...
+                                    'severity', 2, ...
+                                    'message', msg)];
+        end
+    end
+end
+
+
+function [usage, spread] = get_variable_usage(name, tokens)
+    uses = tokens(strcmp({tokens.text}, name) & ...
+                  strcmp({tokens.type}, 'identifier'));
+    usage = length(uses);
+    lines = [uses.line];
+    spread = max(lines)-min(lines);
 end
 
 
@@ -63,9 +115,6 @@ function print_line_report(line_report)
         else
             fprintf('    Line %i: %s\n', item.line, item.message);
         end
-    end
-    if ~isempty(line_report)
-        fprintf('\n');
     end
 end
 
@@ -84,11 +133,11 @@ function print_complexity(mlintInfo, func_start)
     complexity = str2num(matches.n);
     fprintf('    McCabe complexity: %i ', complexity);
     if complexity < 10
-        fprintf('(good)\n\n');
+        fprintf('(good)\n');
     elseif complexity < 15
-        fprintf('(high)\n\n');
+        fprintf('(high)\n');
     else
-        fprintf('[\b(too high)]\b\n\n');
+        fprintf('[\b(too high)]\b\n');
     end
 end
 
@@ -105,23 +154,6 @@ function print_mlint_warnings(mlintInfo, func_start, func_stop)
         info = mlintInfo(idx);
         fprintf('      [\b%s]\b (%i:%i)\n', ...
                 info.message, info.line, info.column(1));
-    end
-    fprintf('\n');
-end
-
-
-function print_var_list(varlist, indent, label)
-    if isempty(varlist)
-        fprintf('    No %s\n\n', label);
-    else
-        fprintf('    %s:\n', label);
-        for var=varlist
-            fprintf(repmat(' ', 1, indent));
-            fprintf('%s (%i:%i) ', var.text, var.line, var.char);
-            print_shadow(var.text);
-            fprintf('\n');
-        end
-        fprintf('\n');
     end
 end
 
