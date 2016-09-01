@@ -74,11 +74,12 @@ function tokens = tokenize(text)
             add_token('space', symbol);
         elseif any(letter == punctuation)
             is_first = false;
-            % property access
+            % property access:
             if letter == '.' && loc < length(text) && any(text(loc+1) == name_start)
                 loc = loc + 1;
                 symbol = [letter skip(name_body)];
                 add_token('property', symbol);
+            % operator:
             else
                 symbol = skip(punctuation);
                 % one operator:
@@ -92,6 +93,9 @@ function tokens = tokenize(text)
                 elseif strcmp(symbol, '.') && text(loc) == ''''
                     loc = loc + 1;
                     add_token('punctuation', '.''');
+                % struct access operator:
+                elseif strcmp(symbol, '.') && text(loc) == '('
+                    add_token('punctuation', '.');
                 else
                     error(['unknown operator ''' symbol '''']);
                 end
