@@ -45,7 +45,7 @@ function print_func_report(func, mlintInfo, indentation)
     fprintf('%s%s <strong>%s</strong> (<a href="%s">Line %i, col %i</a>): ', ...
             prefix, func.type, func.name.text, ...
             open_file_link(func.filename, func.name.line), ...
-            func.name.line, func.name.char);
+            func.name.line, func.name.col);
     fprintf('\n\n');
 
     if any(strcmp(func.type, {'Function', 'Subfunction', 'Nested Function'}))
@@ -88,9 +88,9 @@ function print_func_report(func, mlintInfo, indentation)
                     check_eval(func.body)];
     end
     if ~isempty(reports)
-        % First, secondary sort by char
+        % First, secondary sort by column
         report_tokens = [reports.token];
-        [~, sort_idx] = sort([report_tokens.char]);
+        [~, sort_idx] = sort([report_tokens.col]);
         reports = reports(sort_idx);
         % Second, primary sort by line (preserves secondary
         % sorting order in case of collisions)
@@ -233,11 +233,11 @@ function print_report(report, indentation, filename)
         if item.severity == 2
             fprintf('%s<a href="%s">Line %i, col %i</a>: [\b%s]\b\n', prefix, ...
                     open_file_link(filename, item.token.line), ...
-                    item.token.line, item.token.char, item.message);
+                    item.token.line, item.token.col, item.message);
         else
             fprintf('%s<a href="%s">Line %i, col %i</a>: %s\n', prefix, ...
                     open_file_link(filename, item.token.line), ...
-                    item.token.line, item.token.char, item.message);
+                    item.token.line, item.token.col, item.message);
         end
     end
 end
@@ -552,20 +552,20 @@ function report = check_indentation(tokens)
         if first_nonspace.hasType('comment')
             if ~(current_indent >= expected_indent) && current_indent ~= expected_indent-indent
                 token = Token('special', 'indentation warning', ...
-                              line_tokens(1).line, line_tokens(1).char);
+                              line_tokens(1).line, line_tokens(1).col);
                 report = [report struct('token', token, ...
                                         'message', 'incorrect indentation!', ...
                                         'severity', 2)];
             end
         elseif ~is_continuation && current_indent ~= expected_indent
             token = Token('special', 'indentation warning', ...
-                          line_tokens(1).line, line_tokens(1).char);
+                          line_tokens(1).line, line_tokens(1).col);
             report = [report struct('token', token, ...
                                     'message', 'incorrect indentation!', ...
                                     'severity', 2)];
         elseif is_continuation && current_indent <= expected_indent
             token = Token('special', 'indentation warning', ...
-                          line_tokens(1).line, line_tokens(1).char);
+                          line_tokens(1).line, line_tokens(1).col);
             report = [report struct('token', token, ...
                                     'message', 'not enough indentation!', ...
                                     'severity', 2)];

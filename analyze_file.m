@@ -153,10 +153,10 @@ function variables = get_variables(tokens)
     variables = variables.values();
     variables = [variables{:}]; % convert to object array
     if ~isempty(variables)
-        % sort by char:
-        [~, idx] = sort([variables.char]);
+        % sort by column:
+        [~, idx] = sort([variables.col]);
         variables = variables(idx);
-        % sort by line (in case of collision, this preserves char ordering):
+        % sort by line (in case of collision, this preserves column ordering):
         [~, idx] = sort([variables.line]);
         variables = variables(idx);
     end

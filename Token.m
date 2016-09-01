@@ -3,15 +3,15 @@ classdef Token < handle
         type
         text
         line
-        char
+        col
     end
 
     methods
-        function obj = Token(type, text, line, char)
+        function obj = Token(type, text, line, col)
             obj.type = type;
             obj.text = text;
             obj.line = line;
-            obj.char = char;
+            obj.col = col;
         end
 
         function yesNo = hasType(obj, type)

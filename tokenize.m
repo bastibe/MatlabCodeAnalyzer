@@ -1,8 +1,9 @@
 function tokens = tokenize(text)
-%TOKENIZE splits M-code into tokens
-%   TOKENIZE(TEXT) splits the TEXT into interpretable parts.
-%   It returns a struct array, where each struct contains a 'type' and
-%   a 'text'. Concatenating all 'text's recreates the original TEXT.
+%TOKENIZE splits M-code into Tokens
+%   TOKENIZE(TEXT) splits the TEXT into interpretable parts. It
+%   returns an object array of Tokens, where each token has a 'type',
+%   a 'text', a 'line', and a 'col'. Concatenating all 'text's
+%   recreates the original TEXT.
 %   'type' can be one of:
 %   - 'keyword'
 %   - 'identifier'
@@ -15,6 +16,11 @@ function tokens = tokenize(text)
 %   - 'linebreak'
 %   - 'comment'
 %   - 'escape'
+%
+% See also: Token
+
+% (c) 2016, Bastian Bechtold
+% This code is licensed under the terms of the BSD 3-clause license
 
     punctuation = '=.&|><~+-*^/\:@';
     open_pairs = '{[(';
