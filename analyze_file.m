@@ -30,7 +30,12 @@ function functions = analyze_file(filename, tokens)
         end
         % remember function starts and ends
         if token.isEqual('keyword', 'function')
-            stack = [stack struct('start', pos, 'nesting', nesting-1, 'children', [])];
+            if pos > 1 && tokens(pos-1).hasType('space')
+                start = pos - 1;
+            else
+                start = pos;
+            end
+            stack = [stack struct('start', start, 'nesting', nesting-1, 'children', [])];
         elseif (token.isEqual('keyword', 'end') && ...
                 ~isempty(stack) && nesting == stack(end).nesting) || ...
                (pos == length(tokens) && ~isempty(stack)) % allow functions without end

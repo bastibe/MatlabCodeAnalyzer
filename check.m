@@ -452,7 +452,15 @@ function report = check_indentation(tokens)
 
         current_indent = get_line_indentation(line_tokens);
 
-        if ~is_continuation && current_indent ~= expected_indent
+        if first_nonspace.hasType('comment')
+            if ~(current_indent >= expected_indent) && current_indent ~= expected_indent-4
+                token = Token('special', 'indentation warning', ...
+                              line_tokens(1).line, line_tokens(1).char);
+                report = [report struct('token', token, ...
+                                        'message', 'incorrect indentation!', ...
+                                        'severity', 2)];
+            end
+        elseif ~is_continuation && current_indent ~= expected_indent
             token = Token('special', 'indentation warning', ...
                           line_tokens(1).line, line_tokens(1).char);
             report = [report struct('token', token, ...
