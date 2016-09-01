@@ -141,6 +141,9 @@ function tokens = tokenize(text)
         elseif any(letter == escapes)
             line = skip_line();
             if letter == '%'
+                if ~isempty(regexp(line, '^\%\{\s*$')) && is_first
+                    line = [line skip_block_comment()];
+                end
                 add_token('comment', line);
             else
                 add_token('escape', line);
@@ -190,6 +193,26 @@ function tokens = tokenize(text)
                 loc = loc + 1;
                 break;
             end
+        end
+        str = text(start:loc-1);
+    end
+
+    function str = skip_block_comment()
+        start = loc;
+        is_new_line = false;
+        while loc <= length(text)
+            if text(loc) == sprintf('\n')
+                is_new_line = true;
+            elseif any(text(loc) == sprintf('\t '))
+                % nothing changes
+            elseif text(loc) == '%' && is_new_line && ...
+                   loc < length(text) && text(loc+1) == '}'
+                loc = loc + 2;
+                break
+            else
+                is_new_line = false;
+            end
+            loc = loc + 1;
         end
         str = text(start:loc-1);
     end

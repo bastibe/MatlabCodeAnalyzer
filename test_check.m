@@ -81,3 +81,14 @@ assert(tokens(9).isEqual('keyword', 'end'))
 tokens = tokenize('[1;2];3');
 assert(tokens(3).isEqual('punctuation', ';'))
 assert(tokens(6).isEqual('linebreak', ';'))
+
+
+%% Identify block comments
+comment = sprintf('%%{ \n foo bar \n %%}');
+tokens = tokenize(comment);
+assert(length(tokens) == 1)
+assert(tokens.isEqual('comment', comment))
+
+tokens = tokenize(sprintf('x\n%s\nx', comment));
+assert(length(tokens) == 5)
+assert(tokens(3).isEqual('comment', comment))
