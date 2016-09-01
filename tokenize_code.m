@@ -1,5 +1,5 @@
 function tokenlist = tokenize_code(source_code)
-%TOKENIZE splits M-code into Tokens
+%TOKENIZE_CODE splits M-code into Tokens
 %   TOKENIZE(SOURCE_CODE) splits the SOURCE_CODE into interpretable
 %   parts. It returns an object array of Tokens TOKENLIST, where each
 %   token has a 'type', a 'text', a 'line', and a 'col'. Concatenating
@@ -186,7 +186,7 @@ function tokenlist = tokenize_code(source_code)
             if letter == '%'
                 if ~isempty(regexp(comment, '^\%\{\s*$', 'once')) && ...
                    is_first_symbol
-                    comment = [comment skip_block_comment()];
+                    comment = [comment skip_block_comment()]; %#ok
                 end
                 add_token('comment', comment);
             else

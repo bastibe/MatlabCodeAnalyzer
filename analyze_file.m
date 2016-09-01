@@ -77,7 +77,7 @@ function blocks = analyze_file(filename, tokenlist)
             stack_frame = struct('start', function_start, ...
                                  'nesting', nesting-1, ...
                                  'children', []);
-            function_stack = [function_stack stack_frame];
+            function_stack = [function_stack stack_frame]; %#ok
 
         elseif is_end_of_block || is_end_of_function_file
             function_body = ...
@@ -114,7 +114,7 @@ function blocks = analyze_file(filename, tokenlist)
                         [function_stack(end).children new_block];
                 end
             else
-                blocks = [blocks new_block];
+                blocks = [blocks new_block]; %#ok
             end
 
         elseif is_end_of_other_file
@@ -158,7 +158,7 @@ function variables = get_properties(tokenlist)
         if token.hasType('linebreak')
             is_first = true;
         elseif token.hasType('identifier') && is_first && in_properties
-            variables = [variables token];
+            variables = [variables token]; %#ok
             is_first = false;
         end
     end
