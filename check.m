@@ -8,7 +8,7 @@ function check(filename)
     mlintInfo = checkcode(fullfilename, '-cyc', '-id', '-struct' ,'-fullpath');
 
     text = fileread(filename);
-    tokens = tokenize(text);
+    tokens = tokenize_code(text);
     func_report = analyze_file(fullfilename, tokens);
 
     fprintf('Code Analysis for <strong>%s</strong>\n\n', filename);
