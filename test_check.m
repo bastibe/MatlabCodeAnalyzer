@@ -6,39 +6,39 @@ assert(strcmp(reconstructed_text, text))
 
 
 %% Function names should be extracted
-report = analyze_functions(tokenize('function foo(); end'));
+report = analyze_file('', tokenize('function foo(); end'));
 assert(strcmp(report.name.text, 'foo'))
 
-report = analyze_functions(tokenize('function x = foo(); end'));
+report = analyze_file('', tokenize('function x = foo(); end'));
 assert(strcmp(report.name.text, 'foo'))
 
-report = analyze_functions(tokenize('function [x, y] = foo(); end'));
+report = analyze_file('', tokenize('function [x, y] = foo(); end'));
 assert(strcmp(report.name.text, 'foo'))
 
 
 %% Function return names should be extracted
-report = analyze_functions(tokenize('function foo(); end'));
+report = analyze_file('', tokenize('function foo(); end'));
 assert(isempty(report.returns))
 
-report = analyze_functions(tokenize('function x = foo(); end'));
+report = analyze_file('', tokenize('function x = foo(); end'));
 assert(strcmp(report.returns(1).text, 'x'))
 assert(length(report.returns) == 1)
 
-report = analyze_functions(tokenize('function [x, y] = foo(); end'));
+report = analyze_file('', tokenize('function [x, y] = foo(); end'));
 assert(strcmp(report.returns(1).text, 'x'))
 assert(strcmp(report.returns(2).text, 'y'))
 assert(length(report.returns) == 2)
 
 
 %% Function arguments should be extracted
-report = analyze_functions(tokenize('function foo(); end'));
+report = analyze_file('', tokenize('function foo(); end'));
 assert(isempty(report.arguments))
 
-report = analyze_functions(tokenize('function foo(x); end'));
+report = analyze_file('', tokenize('function foo(x); end'));
 assert(strcmp(report.arguments(1).text, 'x'))
 assert(length(report.arguments) == 1)
 
-report = analyze_functions(tokenize('function foo(x, y); end'));
+report = analyze_file('', tokenize('function foo(x, y); end'));
 assert(strcmp(report.arguments(1).text, 'x'))
 assert(strcmp(report.arguments(2).text, 'y'))
 assert(length(report.arguments) == 2)
