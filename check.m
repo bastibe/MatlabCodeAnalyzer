@@ -289,7 +289,7 @@ function report = check_documentation(func)
         return
     end
     for var=func.arguments
-        if isempty(strfind(doc_text, var.text))
+        if isempty(strfind(lower(doc_text), lower(var.text)))
             msg = sprintf('function argument ''%s'' is not mentioned in the documentation', ...
                           var.text);
             report = [report struct('token', var, ...
@@ -298,7 +298,7 @@ function report = check_documentation(func)
         end
     end
     for var=func.returns
-        if isempty(strfind(doc_text, var.text))
+        if isempty(strfind(lower(doc_text), lower(var.text)))
             msg = sprintf('return argument ''%s'' is not mentioned in the documentation', ...
                           var.text);
             report = [report struct('token', var, ...
@@ -315,7 +315,7 @@ function doc_text = get_function_documentation(tokens)
     while idx <= length(tokens) && ~tokens(idx).isEqual('pair', ')')
         idx = idx + 1;
     end
-    idx = idx + 1;
+    idx = idx + 2;
 
     % extract documentation text
     doc_types = {'comment' 'space' 'linebreak'};
@@ -324,7 +324,7 @@ function doc_text = get_function_documentation(tokens)
         idx = idx + 1;
     end
     comment_tokens = tokens(start:idx-1);
-    comment_tokens = tokens(strcmp({comment_tokens.type}, 'comment'));
+    comment_tokens = comment_tokens(strcmp({comment_tokens.type}, 'comment'));
     doc_text = horzcat([comment_tokens.text]);
 end
 
@@ -458,19 +458,21 @@ end
 
 function yesNo = does_shadow(varname)
     yesNo = false;
-    builtinfun = 'is a built-in method';
-    builtinstr = 'built-in';
-    shadows = which(varname, '-all');
-    for idx=1:length(shadows)
-        shadow = shadows{idx};
-        if ( length(shadow) >= length(matlabroot) && ...
-             strcmp(shadow(1:length(matlabroot)), matlabroot) ) || ...
-           ( length(shadow) >= length(builtinstr) && ...
-             strcmp(shadow(1:length(builtinstr)), builtinstr) ) || ...
-           ( length(shadow) >= length(builtinfun) && ...
-             strcmp(shadow(end-length(builtinfun)+1:end), builtinfun) )
-            yesNo = true;
-            return
+    if any(exist(varname) == [2 3 4 5 6 8])
+        shadows = which(varname, '-all');
+        builtinfun = 'is a built-in method';
+        builtinstr = 'built-in';
+        for idx=1:length(shadows)
+            shadow = shadows{idx};
+            if ( length(shadow) >= length(matlabroot) && ...
+                 strcmp(shadow(1:length(matlabroot)), matlabroot) ) || ...
+               ( length(shadow) >= length(builtinstr) && ...
+                 strcmp(shadow(1:length(builtinstr)), builtinstr) ) || ...
+               ( length(shadow) >= length(builtinfun) && ...
+                 strcmp(shadow(end-length(builtinfun)+1:end), builtinfun) )
+                yesNo = true;
+                return
+            end
         end
     end
 end

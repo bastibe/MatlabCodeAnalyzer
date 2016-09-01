@@ -115,7 +115,7 @@ end
 
 function variables = get_funcvariables(tokens)
     func_start = search_token('pair', ')', tokens, 1, +1);
-    variables = get_variables(tokens(func_start:end));
+    variables = get_variables(tokens(func_start+1:end));
 end
 
 
@@ -140,9 +140,9 @@ function variables = get_variables(tokens)
             % all non-nested identifiers are assigned variable names
             nesting = 0;
             for t=lhs_tokens
-                if t.isEqual('pair', '[{(')
+                if t.isEqual('pair', {'[' '{' '('})
                     nesting = nesting + 1;
-                elseif t.isEqual('pair', ']})')
+                elseif t.isEqual('pair', {']' '}' ')'})
                     nesting = nesting - 1;
                 elseif t.hasType('identifier') && nesting == 0 && ~variables.isKey(t.text)
                     variables(t.text) = t;
