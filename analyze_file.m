@@ -75,10 +75,32 @@ function functions = analyze_file(filename, tokens)
                                'body', tokens, ...
                                'nesting', 0, ...
                                'children', functions, ...
-                               'variables', [], ...
+                               'variables', {get_properties(tokens)}, ...
                                'arguments', [], ...
                                'returns', [], ...
                                'type', main_type);
+        end
+    end
+end
+
+
+function variables = get_properties(tokens)
+    variables = Token.empty;
+    in_properties = false;
+    is_first = false;
+    for pos = 1:length(tokens)
+        token = tokens(pos);
+        if token.isEqual('keyword', 'properties')
+            in_properties = true;
+            is_first = false;
+        elseif in_properties && token.isEqual('keyword', 'end')
+            in_properties = false;
+        end
+        if token.hasType('linebreak')
+            is_first = true;
+        elseif token.hasType('identifier') && is_first && in_properties
+            variables = [variables token];
+            is_first = false;
         end
     end
 end
