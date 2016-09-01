@@ -34,10 +34,8 @@ function check(filename)
         end
     end
 
-    indentation = 2;
-
     for func=func_report
-        print_func_report(func, mlintInfo, indentation);
+        print_func_report(func, mlintInfo, 2);
     end
 end
 
@@ -121,13 +119,19 @@ function print_class_stats(stats, indentation)
     prefix = repmat(' ', 1, indentation);
 
     fprintf('%sNumber of lines: ', prefix);
-    print_evaluation(stats.num_lines, 200, 400);
+    print_evaluation(stats.num_lines, ...
+                     check_settings('lo_class_num_lines'), ...
+                     check_settings('hi_class_num_lines'));
 
     fprintf('%sNumber of properties: ', prefix);
-    print_evaluation(stats.num_properties, 10, 15);
+    print_evaluation(stats.num_properties, ...
+                     check_settings('lo_class_num_properties'), ...
+                     check_settings('hi_class_num_properties'));
 
     fprintf('%sNumber of methods: ', prefix);
-    print_evaluation(stats.num_methods, 10, 20);
+    print_evaluation(stats.num_methods, ...
+                     check_settings('lo_class_num_methods'), ...
+                     check_settings('hi_class_num_methods'));
 end
 
 
@@ -141,10 +145,14 @@ function print_script_stats(stats, indentation)
     prefix = repmat(' ', 1, indentation);
 
     fprintf('%sNumber of lines: ', prefix);
-    print_evaluation(stats.num_lines, 100, 200);
+    print_evaluation(stats.num_lines, ...
+                     check_settings('lo_script_num_lines'), ...
+                     check_settings('hi_script_num_lines'));
 
     fprintf('%sNumber of variables: ', prefix);
-    print_evaluation(stats.num_variables, 10, 20);
+    print_evaluation(stats.num_variables, ...
+                     check_settings('lo_script_num_variables'), ...
+                     check_settings('hi_script_num_variables'));
 end
 
 
@@ -181,19 +189,29 @@ function print_function_stats(stats, indentation)
     prefix = repmat(' ', 1, indentation);
 
     fprintf('%sNumber of lines: ', prefix);
-    print_evaluation(stats.num_lines, 50, 100);
+    print_evaluation(stats.num_lines, ...
+                     check_settings('lo_function_num_lines'), ...
+                     check_settings('hi_function_num_lines'));
 
     fprintf('%sNumber of function arguments: ', prefix);
-    print_evaluation(stats.num_arguments, 3, 5);
+    print_evaluation(stats.num_arguments, ...
+                     check_settings('lo_function_num_arguments'), ...
+                     check_settings('hi_function_num_arguments'));
 
     fprintf('%sNumber of used variables: ', prefix);
-    print_evaluation(stats.num_variables, 7, 15);
+    print_evaluation(stats.num_variables, ...
+                     check_settings('lo_function_num_variables'), ...
+                     check_settings('hi_function_num_variables'));
 
     fprintf('%sMax level of nesting: ', prefix);
-    print_evaluation(stats.max_indentation, 3, 5);
+    print_evaluation(stats.max_indentation, ...
+                     check_settings('lo_function_max_indentation'), ...
+                     check_settings('hi_function_max_indentation'));
 
     fprintf('%sCyclomatic complexity: ', prefix);
-    print_evaluation(stats.complexity, 10, 15);
+    print_evaluation(stats.complexity, ...
+                     check_settings('lo_function_complexity'), ...
+                     check_settings('hi_function_complexity'));
 end
 
 
@@ -226,6 +244,11 @@ end
 
 
 function report = check_comments(tokens)
+    report = struct('token', {}, 'severity', {}, 'message', {});
+    if ~check_settings('do_check_comments')
+        return
+    end
+
     line_tokens = split_lines(tokens);
     num_lines = length(line_tokens);
     num_comments = 0;
@@ -248,15 +271,17 @@ function report = check_comments(tokens)
         report = struct('token', tokens(1), ...
                         'severity', 1, ...
                         'message', msg);
-    else
-        report = struct('token', {}, 'severity', {}, 'message', {});
     end
 end
 
 
 function report = check_documentation(func)
-    doc_text = get_function_documentation(func.body);
     report = struct('token', {}, 'severity', {}, 'message', {});
+    if ~check_settings('do_check_documentation')
+        return
+    end
+
+    doc_text = get_function_documentation(func.body);
     if isempty(doc_text)
         report = [report struct('token', func.body(1), ...
                                 'severity', 2, ...
@@ -306,6 +331,10 @@ end
 
 function report = check_eval(tokens)
     report = struct('token', {}, 'severity', {}, 'message', {});
+    if ~check_settings('do_check_eval')
+        return
+    end
+
     eval_tokens = tokens(strcmp({tokens.text}, 'eval') & ...
                          strcmp({tokens.type}, 'identifier'));
     for t = eval_tokens
@@ -317,12 +346,16 @@ end
 
 
 function report = check_operators(tokens)
+    report = struct('token', {}, 'severity', {}, 'message', {});
+    if ~check_settings('do_check_operators')
+        return
+    end
+
     space_around_operators = { '>' '<' '==' '>=' '<=' '~=' ...
                                '=' '||' '&&' '|' '&'};
     space_after_operators = { ',' ';' };
     space_before_operators = { '@' '...' };
 
-    report = struct('token', {}, 'severity', {}, 'message', {});
     op_indices = find(strcmp({tokens.type}, 'punctuation'));
     for idx=op_indices
         has_space_before = idx > 1 && tokens(idx-1).hasType('space');
@@ -354,6 +387,10 @@ end
 
 function report = check_variables(varlist, scope_tokens, description)
     report = struct('token', {}, 'severity', {}, 'message', {});
+    if ~check_settings('do_check_variables')
+        return
+    end
+
     for var=varlist
         if does_shadow(var.text)
             msg = sprintf('%s ''%s'' shadows a built-in', description, var.text);
@@ -392,6 +429,9 @@ end
 
 function report = check_mlint_warnings(mlintInfo, func_start, func_stop)
     report = struct('token', {}, 'severity', {}, 'message', {});
+    if ~check_settings('do_check_mlint_warnings')
+        return
+    end
 
     mlintInfo = mlintInfo([mlintInfo.line] >= func_start);
     mlintInfo = mlintInfo([mlintInfo.line] <= func_stop);
@@ -437,6 +477,10 @@ end
 
 function report = check_line_length(tokens)
     report = struct('token', {}, 'message', {}, 'severity', {});
+    if ~check_settings('do_check_line_length')
+        return
+    end
+
     lines = split_lines(tokens);
     for line_idx=1:length(lines)
         line_tokens = lines{line_idx};
@@ -459,13 +503,16 @@ end
 
 
 function report = check_indentation(tokens)
+    report = struct('token', {}, 'message', {}, 'severity', {});
+    if ~check_settings('do_check_indentation')
+        return
+    end
+
     beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
                   'events' 'properties' 'enumeration' 'methods' ...
                   'function'};
     middles = {'else' 'elseif' 'case'};
     ends = {'end'};
-
-    report = struct('token', {}, 'message', {}, 'severity', {});
 
     lines = split_lines(tokens);
     previous_indent = get_line_indentation(lines{1});
@@ -485,14 +532,15 @@ function report = check_indentation(tokens)
 
         first_nonspace = get_first_nonspace(line_tokens);
 
+        indent = check_settings('indentation_step');
         if first_nonspace.isEqual('keyword', beginnings)
             expected_indent = previous_indent;
-            previous_indent = previous_indent + 4;
+            previous_indent = previous_indent + indent;
         elseif first_nonspace.isEqual('keyword', middles)
-            expected_indent = previous_indent - 4;
+            expected_indent = previous_indent - indent;
         elseif first_nonspace.isEqual('keyword', ends)
-            expected_indent = previous_indent - 4;
-            previous_indent = previous_indent - 4;
+            expected_indent = previous_indent - indent;
+            previous_indent = previous_indent - indent;
         elseif is_continuation
             % same rules as in previous line
         else
@@ -502,7 +550,7 @@ function report = check_indentation(tokens)
         current_indent = get_line_indentation(line_tokens);
 
         if first_nonspace.hasType('comment')
-            if ~(current_indent >= expected_indent) && current_indent ~= expected_indent-4
+            if ~(current_indent >= expected_indent) && current_indent ~= expected_indent-indent
                 token = Token('special', 'indentation warning', ...
                               line_tokens(1).line, line_tokens(1).char);
                 report = [report struct('token', token, ...
