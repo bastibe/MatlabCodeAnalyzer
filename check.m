@@ -44,7 +44,8 @@ end
 
 function print_func_report(func, mlintInfo, indentation)
     prefix = repmat(' ', 1, indentation);
-    fprintf('%sFunction <strong>%s</strong> (Line %i, col %i): ', prefix, ...
+    fprintf('%s%s <strong>%s</strong> (Line %i, col %i): ', ...
+            prefix, func.functype, ...
             func.name.text, func.name.line, func.name.char);
     fprintf('\n\n');
 
