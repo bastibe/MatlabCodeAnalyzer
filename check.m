@@ -3,7 +3,9 @@ function check(filename)
 
     [requiredFiles, requiredProducts] = ...
         matlab.codetools.requiredFilesAndProducts(filename);
-    mlintInfo = checkcode(filename, '-cyc', '-id');
+    % manually fetch file name, since checkcode won't do it correctly
+    fullfilename = which(filename);
+    mlintInfo = checkcode(fullfilename, '-cyc', '-id', '-struct' ,'-fullpath');
 
     text = fileread(filename);
     tokens = tokenize(text);
@@ -32,55 +34,128 @@ function check(filename)
         end
     end
 
+    indentation = 2;
+
     for func=func_report
-        fprintf('  Function <strong>%s</strong> (%s:%i:%i): ', ...
-                func.name.text, filename, func.name.line, func.name.char);
-        fprintf('\n\n');
-
-        stats = get_stats(func, mlintInfo);
-        print_stats(stats);
-        fprintf('\n');
-
-        func_start = func.body(1).line;
-        func_end = func.body(end).line;
-
-
-        reports = [check_variables(func.name, func.body, 'function') ...
-                   check_documentation(func) ...
-                   check_comments(func.body) ...
-                   check_mlint_warnings(mlintInfo, func_start, func_end) ...
-                   check_indentation(func.body) ...
-                   check_line_length(func.body) ...
-                   check_variables(func.arguments, func.body, 'function argument') ...
-                   check_variables(func.returns, func.body, 'return argument') ...
-                   check_variables(func.variables, func.body, 'variable') ...
-                   check_operators(func.body) ...
-                   check_eval(func.body)];
-        if ~isempty(reports)
-            % First, secondary sort by char
-            report_tokens = [reports.token];
-            [~, sort_idx] = sort([report_tokens.char]);
-            reports = reports(sort_idx);
-            % Second, primary sort by line (preserves secondary
-            % sorting order in case of collisions)
-            report_tokens = [reports.token];
-            [~, sort_idx] = sort([report_tokens.line]);
-            reports = reports(sort_idx);
-            print_report(reports);
-        end
-
-        fprintf('\n\n');
+        print_func_report(func, mlintInfo, indentation);
     end
 end
 
 
-function print_report(report)
+function print_func_report(func, mlintInfo, indentation)
+    prefix = repmat(' ', 1, indentation);
+    fprintf('%sFunction <strong>%s</strong> (Line %i, col %i): ', prefix, ...
+            func.name.text, func.name.line, func.name.char);
+    fprintf('\n\n');
+
+    stats = get_stats(func, mlintInfo);
+    print_stats(stats, indentation+2);
+    fprintf('\n');
+
+    func_start = func.body(1).line;
+    func_end = func.body(end).line;
+
+    reports = [check_variables(func.name, func.body, 'function') ...
+               check_documentation(func) ...
+               check_comments(func.body) ...
+               check_mlint_warnings(mlintInfo, func_start, func_end) ...
+               check_indentation(func.body) ...
+               check_line_length(func.body) ...
+               check_variables(func.arguments, func.body, 'function argument') ...
+               check_variables(func.returns, func.body, 'return argument') ...
+               check_variables(func.variables, func.body, 'variable') ...
+               check_operators(func.body) ...
+               check_eval(func.body)];
+    if ~isempty(reports)
+        % First, secondary sort by char
+        report_tokens = [reports.token];
+        [~, sort_idx] = sort([report_tokens.char]);
+        reports = reports(sort_idx);
+        % Second, primary sort by line (preserves secondary
+        % sorting order in case of collisions)
+        report_tokens = [reports.token];
+        [~, sort_idx] = sort([report_tokens.line]);
+        reports = reports(sort_idx);
+        print_report(reports, indentation+2);
+    end
+
+    fprintf('\n\n');
+
+    for subfunc=func.children
+        print_func_report(subfunc, mlintInfo, indentation+4)
+    end
+end
+
+
+function stats = get_stats(func, mlintInfo)
+    stats.num_lines = length(split_lines(func.body));
+    stats.num_arguments = length(func.arguments);
+    stats.num_variables = length(func.variables);
+
+    % max indentation
+    keywords = func.body(strcmp({func.body.type}, 'keyword'));
+    indentation = 1;
+    max_indentation = 0;
+    for keyword=keywords
+        if keyword.hasText({'if' 'for' 'parfor' 'while' 'switch'})
+            indentation = indentation + 1;
+            max_indentation = max(max_indentation, indentation);
+        elseif keyword.hasText('end')
+            indentation = indentation - 1;
+        end
+    end
+    stats.max_indentation = max_indentation;
+
+    % cyclomatic complexity
+    mlintInfo = mlintInfo(strcmp({mlintInfo.id}, 'CABE'));
+    mlintInfo = mlintInfo([mlintInfo.line] == func.body(1).line);
+    assert(length(mlintInfo) == 1);
+    pattern = 'The McCabe complexity of ''(?<f>[^'']+)'' is (?<n>[0-9]+)';
+    matches = regexp(mlintInfo.message, pattern, 'names');
+    stats.complexity = str2num(matches.n);
+end
+
+
+function print_stats(stats, indentation)
+    prefix = repmat(' ', 1, indentation);
+
+    fprintf('%sNumber of lines: ', prefix);
+    print_evaluation(stats.num_lines, 50, 100);
+
+    fprintf('%sNumber of function arguments: ', prefix);
+    print_evaluation(stats.num_arguments, 3, 5);
+
+    fprintf('%sNumber of used variables: ', prefix);
+    print_evaluation(stats.num_variables, 7, 15);
+
+    fprintf('%sMax level of nesting: ', prefix);
+    print_evaluation(stats.max_indentation, 3, 5);
+
+    fprintf('%sCyclomatic complexity: ', prefix);
+    print_evaluation(stats.complexity, 10, 15);
+end
+
+
+function print_evaluation(value, low_thr, high_thr)
+    if value < low_thr
+        fprintf('%i (good)\n', value);
+    elseif value < high_thr
+        fprintf('%i (high)\n', value);
+    else
+        fprintf('%i [\b(too high)]\b\n', value);
+    end
+end
+
+
+function print_report(report, indentation)
+    prefix = repmat(' ', 1, indentation);
+
     for item=report
         if item.severity == 2
-            fprintf('    Line %i, col %i: [\b%s]\b\n', ...
+            fprintf('%sLine %i, col %i: [\b%s]\b\n', prefix, ...
                     item.token.line, item.token.char, item.message);
         else
-            fprintf('    Line %i, col %i: %s\n', ...
+            fprintf('%sLine %i, col %i: %s\n', prefix, ...
                     item.token.line, item.token.char, item.message);
         end
     end
@@ -249,64 +324,6 @@ function [usage, spread] = get_variable_usage(name, tokens)
     usage = length(uses);
     lines = [uses.line];
     spread = max(lines)-min(lines);
-end
-
-
-function stats = get_stats(func, mlintInfo)
-    stats.num_lines = length(split_lines(func.body));
-    stats.num_arguments = length(func.arguments);
-    stats.num_variables = length(func.variables);
-
-    % max indentation
-    keywords = func.body(strcmp({func.body.type}, 'keyword'));
-    indentation = 1;
-    max_indentation = 0;
-    for keyword=keywords
-        if keyword.hasText({'if' 'for' 'parfor' 'while' 'switch'})
-            indentation = indentation + 1;
-            max_indentation = max(max_indentation, indentation);
-        elseif keyword.hasText('end')
-            indentation = indentation - 1;
-        end
-    end
-    stats.max_indentation = max_indentation;
-
-    % cyclomatic complexity
-    mlintInfo = mlintInfo(strcmp({mlintInfo.id}, 'CABE'));
-    mlintInfo = mlintInfo([mlintInfo.line] == func.body(1).line);
-    assert(length(mlintInfo) == 1);
-    pattern = 'The McCabe complexity of ''(?<f>[^'']+)'' is (?<n>[0-9]+)';
-    matches = regexp(mlintInfo.message, pattern, 'names');
-    stats.complexity = str2num(matches.n);
-end
-
-
-function print_stats(stats)
-    fprintf('    Number of lines: ');
-    print_evaluation(stats.num_lines, 50, 100);
-
-    fprintf('    Number of function arguments: ');
-    print_evaluation(stats.num_arguments, 3, 5);
-
-    fprintf('    Number of used variables: ');
-    print_evaluation(stats.num_variables, 7, 15);
-
-    fprintf('    Max level of nesting: ');
-    print_evaluation(stats.max_indentation, 3, 5);
-
-    fprintf('    Cyclomatic complexity: ');
-    print_evaluation(stats.complexity, 10, 15);
-end
-
-
-function print_evaluation(value, low_thr, high_thr)
-    if value < low_thr
-        fprintf('%i (good)\n', value);
-    elseif value < high_thr
-        fprintf('%i (high)\n', value);
-    else
-        fprintf('%i [\b(too high)]\b\n', value);
-    end
 end
 
 
