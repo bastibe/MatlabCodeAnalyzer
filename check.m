@@ -49,16 +49,24 @@ function print_func_report(func, mlintInfo, indentation)
             func.name.text, func.name.line, func.name.char);
     fprintf('\n\n');
 
-    if strcmp(func.type, {'Function', 'Subfunction', 'Nested Function'})
+    if any(strcmp(func.type, {'Function', 'Subfunction', 'Nested Function'}))
         stats = get_function_stats(func, mlintInfo);
         print_function_stats(stats, indentation+2);
+        fprintf('\n');
+    elseif strcmp(func.type, 'Class')
+        stats = get_class_stats(func);
+        print_class_stats(stats, indentation+2);
+        fprintf('\n');
+    elseif strcmp(func.type, 'Script')
+        stats = get_script_stats(func);
+        print_script_stats(stats, indentation+2);
         fprintf('\n');
     end
 
     func_start = func.body(1).line;
     func_end = func.body(end).line;
 
-    if strcmp(func.type, {'Function', 'Subfunction', 'Nested Function'})
+    if any(strcmp(func.type, {'Function', 'Subfunction', 'Nested Function'}))
         reports = [check_variables(func.name, func.body, 'function') ...
                    check_documentation(func) ...
                    check_comments(func.body) ...
@@ -98,6 +106,44 @@ function print_func_report(func, mlintInfo, indentation)
     for subfunc=func.children
         print_func_report(subfunc, mlintInfo, indentation+4)
     end
+end
+
+
+function stats = get_class_stats(func)
+    stats.num_lines = length(split_lines(func.body));
+    stats.num_properties = length(func.variables);
+    stats.num_methods = length(func.children);
+end
+
+
+function print_class_stats(stats, indentation)
+    prefix = repmat(' ', 1, indentation);
+
+    fprintf('%sNumber of lines: ', prefix);
+    print_evaluation(stats.num_lines, 200, 400);
+
+    fprintf('%sNumber of properties: ', prefix);
+    print_evaluation(stats.num_properties, 10, 15);
+
+    fprintf('%sNumber of methods: ', prefix);
+    print_evaluation(stats.num_methods, 10, 20);
+end
+
+
+function stats = get_script_stats(func)
+    stats.num_lines = length(split_lines(func.body));
+    stats.num_variables = length(func.variables);
+end
+
+
+function print_script_stats(stats, indentation)
+    prefix = repmat(' ', 1, indentation);
+
+    fprintf('%sNumber of lines: ', prefix);
+    print_evaluation(stats.num_lines, 100, 200);
+
+    fprintf('%sNumber of variables: ', prefix);
+    print_evaluation(stats.num_variables, 10, 20);
 end
 
 
