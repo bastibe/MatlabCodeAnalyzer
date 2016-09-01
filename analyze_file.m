@@ -1,4 +1,4 @@
-function functions = analyze_functions(tokens)
+function functions = analyze_file(filename, tokens)
     beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
                   'events' 'properties' 'enumeration' 'methods' ...
                   'function'};
@@ -6,10 +6,11 @@ function functions = analyze_functions(tokens)
     functions = struct('name', {}, 'body', {}, 'nesting', {}, ...
                        'children', {}, 'variables', {}, ...
                        'arguments', {}, 'returns', {}, ...
-                       'functype', {});
+                       'type', {});
     stack = struct('start', {}, 'nesting', {}, 'children', {});
     nesting = 0;
     first = true;
+    main_type = '';
     for pos = 1:length(tokens)
         token = tokens(pos);
         % count the 'end's to figure out when functions end
@@ -18,19 +19,29 @@ function functions = analyze_functions(tokens)
         elseif token.isEqual('keyword', 'end')
             nesting = nesting - 1;
         end
+        if isempty(main_type) && ~token.hasType({'newline', 'comment'})
+            if token.isEqual('keyword', 'function')
+                main_type = 'Function';
+            elseif token.isEqual('keyword', 'classdef')
+                main_type = 'Class';
+            else
+                main_type = 'Script';
+            end
+        end
         % remember function starts and ends
         if token.isEqual('keyword', 'function')
             stack = [stack struct('start', pos, 'nesting', nesting-1, 'children', [])];
-        elseif token.isEqual('keyword', 'end') && ...
-               ~isempty(stack) && nesting == stack(end).nesting
+        elseif (token.isEqual('keyword', 'end') && ...
+                ~isempty(stack) && nesting == stack(end).nesting) || ...
+               (pos == length(tokens) && ~isempty(stack)) % allow functions without end
             body = tokens(stack(end).start:pos);
-            if nesting > 0
-                functype = 'Nested Function';
+            if nesting > 0 && pos ~= length(tokens)
+                type = 'Nested Function';
             elseif first
-                functype = 'Function';
+                type = main_type;
                 first = false;
             else
-                functype = 'Subfunction';
+                type = 'Subfunction';
             end
             func = struct('name', get_funcname(body), ...
                           'body', body, ...
@@ -39,7 +50,7 @@ function functions = analyze_functions(tokens)
                           'variables', {get_funcvariables(body)}, ...
                           'arguments', {get_funcarguments(body)}, ...
                           'returns', {get_funreturns(body)}, ...
-                          'functype', functype);
+                          'type', type);
             stack(end) = [];
             if nesting > 0 && ~isempty(stack)
                 if isempty(stack(end).children)
@@ -50,15 +61,38 @@ function functions = analyze_functions(tokens)
             else
                 functions = [functions func];
             end
+        elseif pos == length(tokens) && strcmp(main_type, 'Script')
+            functions = struct('name', Token('special', filename, 0, 0), ...
+                               'body', tokens, ...
+                               'nesting', 0, ...
+                               'children', functions, ...
+                               'variables', {get_variables(tokens)}, ...
+                               'arguments', [], ...
+                               'returns', [], ...
+                               'type', main_type);
+        elseif pos == length(tokens) && strcmp(main_type, 'Class')
+            functions = struct('name', Token('special', filename, 0, 0), ...
+                               'body', tokens, ...
+                               'nesting', 0, ...
+                               'children', functions, ...
+                               'variables', [], ...
+                               'arguments', [], ...
+                               'returns', [], ...
+                               'type', main_type);
         end
     end
 end
 
 
 function variables = get_funcvariables(tokens)
-    variables = containers.Map();
     func_start = search_token('pair', ')', tokens, 1, +1);
-    for pos = func_start:length(tokens)
+    variables = get_variables(tokens(func_start:end));
+end
+
+
+function variables = get_variables(tokens)
+    variables = containers.Map();
+    for pos = 1:length(tokens)
         token = tokens(pos);
         if token.isEqual('punctuation', '=')
             start = search_token('linebreak', [], tokens, pos, -1);
