@@ -288,6 +288,13 @@ function report = check_documentation(func)
                                 'message', 'there is no documentation')];
         return
     end
+    if isempty(strfind(lower(doc_text), lower(func.name.text)))
+        msg = sprintf('function name ''%s'' is not mentioned in the documentation', ...
+                      func.name.text);
+        report = [report struct('token', func.name, ...
+                                'severity', 2, ...
+                                'message', msg)];
+    end
     for var=func.arguments
         if isempty(strfind(lower(doc_text), lower(var.text)))
             msg = sprintf('function argument ''%s'' is not mentioned in the documentation', ...
@@ -476,6 +483,7 @@ function yesNo = does_shadow(varname)
         end
     end
 end
+
 
 function report = check_line_length(tokens)
     report = struct('token', {}, 'message', {}, 'severity', {});
