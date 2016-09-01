@@ -18,7 +18,7 @@ function value = check_settings(name)
     settings.lo_function_num_variables = 7;
     settings.hi_function_num_variables = 15;
     settings.lo_function_max_indentation = 3;
-    settings.hi_function_max_indentation = 5;
+    settings.hi_function_max_indentation = 6;
     settings.lo_function_complexity = 10;
     settings.hi_function_complexity = 15;
 
