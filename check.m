@@ -9,7 +9,7 @@ function check(filename)
 
     text = fileread(filename);
     tokens = tokenize(text);
-    func_report = analyze_file(filename, tokens);
+    func_report = analyze_file(fullfilename, tokens);
 
     fprintf('Code Analysis for <strong>%s</strong>\n\n', filename);
 
@@ -44,9 +44,10 @@ end
 
 function print_func_report(func, mlintInfo, indentation)
     prefix = repmat(' ', 1, indentation);
-    fprintf('%s%s <strong>%s</strong> (Line %i, col %i): ', ...
-            prefix, func.type, ...
-            func.name.text, func.name.line, func.name.char);
+    fprintf('%s%s <strong>%s</strong> (<a href="%s">Line %i, col %i</a>): ', ...
+            prefix, func.type, func.name.text, ...
+            open_file_link(func.filename, func.name.line), ...
+            func.name.line, func.name.char);
     fprintf('\n\n');
 
     if any(strcmp(func.type, {'Function', 'Subfunction', 'Nested Function'}))
@@ -98,7 +99,7 @@ function print_func_report(func, mlintInfo, indentation)
         report_tokens = [reports.token];
         [~, sort_idx] = sort([report_tokens.line]);
         reports = reports(sort_idx);
-        print_report(reports, indentation+2);
+        print_report(reports, indentation+2, func.filename);
     end
 
     fprintf('\n\n');
@@ -207,15 +208,17 @@ function print_evaluation(value, low_thr, high_thr)
 end
 
 
-function print_report(report, indentation)
+function print_report(report, indentation, filename)
     prefix = repmat(' ', 1, indentation);
 
     for item=report
         if item.severity == 2
-            fprintf('%sLine %i, col %i: [\b%s]\b\n', prefix, ...
+            fprintf('%s<a href="%s">Line %i, col %i</a>: [\b%s]\b\n', prefix, ...
+                    open_file_link(filename, item.token.line), ...
                     item.token.line, item.token.char, item.message);
         else
-            fprintf('%sLine %i, col %i: %s\n', prefix, ...
+            fprintf('%s<a href="%s">Line %i, col %i</a>: %s\n', prefix, ...
+                    open_file_link(filename, item.token.line), ...
                     item.token.line, item.token.char, item.message);
         end
     end
@@ -550,4 +553,10 @@ function lines = split_lines(tokens)
             line_start = pos + 1;
         end
     end
+end
+
+
+function link = open_file_link(filename, linenum)
+    prefix = 'matlab.desktop.editor.openAndGoToLine';
+    link = sprintf('matlab:%s(''%s'', %i);', prefix, filename, linenum);
 end
