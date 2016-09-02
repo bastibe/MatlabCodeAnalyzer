@@ -62,14 +62,11 @@ function print_func_report(func, mlintInfo, indentation)
         fprintf('\n');
     end
 
-    func_start = func.body(1).line;
-    func_end = func.body(end).line;
-
     if any(strcmp(func.type, {'Function', 'Subfunction', 'Nested Function'}))
         reports = [check_variables(func.name, func.body, 'function') ...
                    check_documentation(func) ...
                    check_comments(func.body) ...
-                   check_mlint_warnings(mlintInfo, func_start, func_end) ...
+                   check_mlint_warnings(mlintInfo, func.body) ...
                    check_indentation(func.body) ...
                    check_line_length(func.body) ...
                    check_variables(func.arguments, func.body, 'function argument') ...
@@ -80,7 +77,7 @@ function print_func_report(func, mlintInfo, indentation)
     else
          reports = [check_documentation(func) ...
                     check_comments(func.body) ...
-                    check_mlint_warnings(mlintInfo, func_start, func_end) ...
+                    check_mlint_warnings(mlintInfo, func.body) ...
                     check_indentation(func.body) ...
                     check_line_length(func.body) ...
                     check_variables(func.variables, func.body, 'variable') ...
@@ -216,6 +213,10 @@ end
 
 
 function print_evaluation(value, low_thr, high_thr)
+%PRINT_EVALUATION prints an evaluation of VALUE.
+%   LOW_THR and HIGH_THR mark thresholds, above which the value is
+%   described as "(good)" -> "(high)" -> "(too high)" in red
+
     if value < low_thr
         fprintf('%i (good)\n', value);
     elseif value < high_thr
@@ -227,249 +228,394 @@ end
 
 
 function print_report(report, indentation, filename)
+%PRINT_REPORT prints the contents of REPORT at INDENTATION. Each REPORT
+%   item is written as a link to the appropriate place in FILENAME.
+
     prefix = repmat(' ', 1, indentation);
 
-    for item=report
-        if item.severity == 2
-            fprintf('%s<a href="%s">Line %i, col %i</a>: [\b%s]\b\n', prefix, ...
-                    open_file_link(filename, item.token.line), ...
-                    item.token.line, item.token.col, item.message);
+    for report_entry = report
+        % print severe report_entrys in red:
+        % red text is created by surrounding it with `[<backspace>` and
+        % `]<backspace>`. The `<backspace>` will delete the preceding
+        % bracket and not show up in the text itself, but it will be
+        % interpreted as a flag to change the text color. This is an
+        % ancient ASCII convention.
+        if report_entry.severity == 2
+            fprintf('%s<a href="%s">Line %i, col %i</a>: [\b%s]\b\n', ...
+                    prefix, ...
+                    open_file_link(filename, report_entry.token.line), ...
+                    report_entry.token.line, ...
+                    report_entry.token.col, ...
+                    report_entry.message);
+
+        % print regular report_entrys in black:
         else
-            fprintf('%s<a href="%s">Line %i, col %i</a>: %s\n', prefix, ...
-                    open_file_link(filename, item.token.line), ...
-                    item.token.line, item.token.col, item.message);
+            fprintf('%s<a href="%s">Line %i, col %i</a>: %s\n', ...
+                    prefix, ...
+                    open_file_link(filename, report_entry.token.line), ...
+                    report_entry.token.line, ...
+                    report_entry.token.col, ...
+                    report_entry.message);
         end
     end
 end
 
 
-function report = check_comments(tokens)
+function report = check_comments(tokenlist)
+%CHECK_COMMENTS REPORTs on the number of comments in TOKENLIST.
+%
+%   Comments should not describe the code itself, but provide context
+%   for reading the code. In other words, they should describe the
+%   *why*, not the *what.
+%
+%   returns a struct array REPORT with fields `token`, `message`, and
+%   `severity`.
+%
+%   This check can be switched off by setting `do_check_comments` in
+%   CHECK_SETTINGS to FALSE.
+
     report = struct('token', {}, 'severity', {}, 'message', {});
     if ~check_settings('do_check_comments')
         return
     end
 
-    line_tokens = split_lines(tokens);
-    num_lines = length(line_tokens);
+    linelist = split_lines(tokenlist);
+    num_lines = length(linelist);
     num_comments = 0;
-    for line=line_tokens
-        line = line{1};
-        if any(strcmp({line.type}, 'comment'))
+    for line_idx = 1:length(linelist)
+        line_tokens = linelist{line_idx};
+        if any(strcmp({line_tokens.type}, 'comment'))
             num_comments = num_comments + 1;
         end
     end
 
+    usage = sprintf('(%i comments for %i lines of code)', ...
+                    num_comments, num_lines);
     if num_comments/num_lines < 0.1
-        msg = sprintf('too few comments (%i comments for %i lines of code)', ...
-                      num_comments, num_lines);
-        report = struct('token', tokens(1), ...
+        report = struct('token', tokenlist(1), ...
                         'severity', 2, ...
-                        'message', msg);
+                        'message', ['too few comments ' usage]);
     elseif num_comments/num_lines < 0.2
-        msg = sprintf('very few comments (%i comments for %i lines of code)', ...
-                      num_comments, num_lines);
-        report = struct('token', tokens(1), ...
+        report = struct('token', tokenlist(1), ...
                         'severity', 1, ...
-                        'message', msg);
+                        'message', ['very few comments ' usage]);
     end
 end
 
 
-function report = check_documentation(func)
+function report = check_documentation(func_struct)
+%CHECK_DOCUMENTATION REPORTs on problems with the documentation of the
+%   function in FUNC_STRUCT.
+%
+%   Documentation is very important for humans. Code is not primarily
+%   written for the machine to execute, but mostly for humans to read.
+%   But many ideas are more efficiently described in prose than in code,
+%   hence we write documentation. Functions in particular should always
+%   be documented.
+%
+%   Problems might be:
+%   - the function name is not mentioned in the documentation
+%   - the function arguments are not mentioned
+%   - the function return values are not mentioned
+%   - there is no documentation
+%
+%   returns a struct array REPORT with fields `token`, `message`, and
+%   `severity`.
+%
+%   This check can be switched off by setting `do_check_documentation` in
+%   CHECK_SETTINGS to FALSE.
+
     report = struct('token', {}, 'severity', {}, 'message', {});
     if ~check_settings('do_check_documentation')
         return
     end
 
-    doc_text = get_function_documentation(func.body);
+    doc_text = get_function_documentation(func_struct.body);
     if isempty(doc_text)
-        report = [report struct('token', func.body(1), ...
+        msg = 'there is no documentation';
+        report = [report struct('token', func_struct.body(1), ...
                                 'severity', 2, ...
-                                'message', 'there is no documentation')];
+                                'message', msg)];
         return
     end
-    if isempty(strfind(lower(doc_text), lower(func.name.text)))
-        msg = sprintf('function name ''%s'' is not mentioned in the documentation', ...
-                      func.name.text);
-        report = [report struct('token', func.name, ...
+    template = '%s ''%s'' is not mentioned in the documentation';
+    if isempty(strfind(lower(doc_text), lower(func_struct.name.text)))
+        msg = sprintf(template, 'function name', func_struct.name.text);
+        report = [report struct('token', func_struct.name, ...
                                 'severity', 2, ...
                                 'message', msg)];
     end
-    for var=func.arguments
-        if isempty(strfind(lower(doc_text), lower(var.text)))
-            msg = sprintf('function argument ''%s'' is not mentioned in the documentation', ...
-                          var.text);
-            report = [report struct('token', var, ...
+    for variable = func_struct.arguments
+        if isempty(strfind(lower(doc_text), lower(variable.text)))
+            msg = sprintf(template, 'function argument', variable.text);
+            report = [report struct('token', variable, ...
                                     'severity', 2, ...
-                                    'message', msg)];
+                                    'message', msg)]; %#ok
         end
     end
-    for var=func.returns
-        if isempty(strfind(lower(doc_text), lower(var.text)))
-            msg = sprintf('return argument ''%s'' is not mentioned in the documentation', ...
-                          var.text);
-            report = [report struct('token', var, ...
+    for variable = func_struct.returns
+        if isempty(strfind(lower(doc_text), lower(variable.text)))
+            msg = sprintf(template, 'return argument', variable.text);
+            report = [report struct('token', variable, ...
                                     'severity', 2, ...
-                                    'message', msg)];
+                                    'message', msg)]; %#ok
         end
     end
 end
 
 
-function doc_text = get_function_documentation(tokens)
+function doc_text = get_function_documentation(tokenlist)
+%GET_FUNCTION_DOCUMENTATION extracts function documentation from TOKENLIST
+%
+%   returns DOC_TEXT as a string
+
     % skip function declaration
-    idx = 1;
-    while idx <= length(tokens) && ~tokens(idx).isEqual('pair', ')')
-        idx = idx + 1;
+    token_idx = 1;
+    while token_idx <= length(tokenlist) && ...
+          ~tokenlist(token_idx).isEqual('pair', ')')
+        token_idx = token_idx + 1;
     end
-    idx = idx + 2;
+    token_idx = token_idx + 2;
+
+    % find documentation
+    doc_types = {'comment' 'space' 'linebreak'};
+    start = token_idx;
+    while token_idx <= length(tokenlist) && ...
+          tokenlist(token_idx).hasType(doc_types)
+        token_idx = token_idx + 1;
+    end
 
     % extract documentation text
-    doc_types = {'comment' 'space' 'linebreak'};
-    start = idx;
-    while idx <= length(tokens) && tokens(idx).hasType(doc_types)
-        idx = idx + 1;
-    end
-    comment_tokens = tokens(start:idx-1);
-    comment_tokens = comment_tokens(strcmp({comment_tokens.type}, 'comment'));
-    doc_text = horzcat([comment_tokens.text]);
+    comment_tokens = tokenlist(start:token_idx-1);
+    comment_tokens = ...
+        comment_tokens(strcmp({comment_tokens.type}, 'comment'));
+    doc_text = [comment_tokens.text];
 end
 
 
-function report = check_eval(tokens)
+function report = check_eval(tokenlist)
+%CHECK_EVAL REPORTs on uses of `eval` in TOKENLIST.
+%
+%   Using `eval` is *never* the right thing to do. There is *always*
+%   a better way. Seriously.
+%
+%   returns a struct array REPORT with fields `token`, `message`, and
+%   `severity`.
+%
+%   This check can be switched off by setting `do_check_eval` in
+%   CHECK_SETTINGS to FALSE.
+
     report = struct('token', {}, 'severity', {}, 'message', {});
     if ~check_settings('do_check_eval')
         return
     end
 
-    eval_tokens = tokens(strcmp({tokens.text}, 'eval') & ...
-                         strcmp({tokens.type}, 'identifier'));
+    eval_tokens = tokenlist(strcmp({tokenlist.text}, 'eval') & ...
+                            strcmp({tokenlist.type}, 'identifier'));
     for t = eval_tokens
+        msg = 'Eval should never be used';
         report = [report struct('token', t, ...
                                 'severity', 2, ...
-                                'message', 'Eval should never be used')];
+                                'message', msg)]; %#ok
     end
 end
 
 
-function report = check_operators(tokens)
+function report = check_operators(tokenlist)
+%CHECK_OPERATORS reports on incorrectly used operators in TOKENLIST
+%
+%   To improve readability, operators should be treated like punctuation
+%   in regular English, i.e. be preceded and followed by spaces just like
+%   in English and math. In particular:
+%   - relational operators such as `>`, `<`, `==`, `~=`, `<=`, `>=`, `=`,
+%     `||`, and `&&` should be surrounded by spaces.
+%   - punctuation such as `,` and `;` should be followed by a space.
+%   - unary operators such as `@` and `...` should be preceded by a space.
+%
+%   returns a struct array REPORT with fields `token`, `message`, and
+%   `severity`.
+%
+%   This check can be switched off by setting `do_check_operators` in
+%   CHECK_SETTINGS to FALSE.
+
     report = struct('token', {}, 'severity', {}, 'message', {});
     if ~check_settings('do_check_operators')
         return
     end
 
     space_around_operators = { '>' '<' '==' '>=' '<=' '~=' ...
-                               '=' '||' '&&' '|' '&'};
+                               '=' '||' '&&'};
     space_after_operators = { ',' ';' };
     space_before_operators = { '@' '...' };
 
-    op_indices = find(strcmp({tokens.type}, 'punctuation'));
-    for idx=op_indices
-        has_space_before = idx > 1 && tokens(idx-1).hasType('space');
-        has_space_after = idx < length(tokens) && tokens(idx+1).hasType('space');
-        has_newline_after = idx < length(tokens) && ...
-                            tokens(idx+1).hasText(sprintf('\n'));
-        if tokens(idx).hasText(space_around_operators) && ...
+    op_indices = find(strcmp({tokenlist.type}, 'punctuation'));
+    for op_idx = op_indices
+        has_space_before = op_idx > 1 && ...
+                           tokenlist(op_idx-1).hasType('space');
+        has_space_after = op_idx < length(tokenlist) && ...
+                          tokenlist(op_idx+1).hasType('space');
+        has_newline_after = op_idx < length(tokenlist) && ...
+                            tokenlist(op_idx+1).hasText(sprintf('\n'));
+        if tokenlist(op_idx).hasText(space_around_operators) && ...
            (~has_space_before || ~has_space_after)
-           msg = sprintf('no spaces around operator ''%s''', tokens(idx).text);
-            report = [report struct('token', tokens(idx), ...
+            msg = sprintf('no spaces around operator ''%s''', ...
+                          tokenlist(op_idx).text);
+            report = [report struct('token', tokenlist(op_idx), ...
                                     'severity', 1, ...
-                                    'message', msg)];
-        elseif tokens(idx).hasText(space_after_operators) && ...
+                                    'message', msg)]; %#ok
+        elseif tokenlist(op_idx).hasText(space_after_operators) && ...
                ~has_space_after && ~has_newline_after
-            msg = sprintf('no spaces after operator ''%s''', tokens(idx).text);
-            report = [report struct('token', tokens(idx), ...
+            msg = sprintf('no spaces after operator ''%s''', ...
+                          tokenlist(op_idx).text);
+            report = [report struct('token', tokenlist(op_idx), ...
                                     'severity', 1, ...
-                                    'message', msg)];
-        elseif tokens(idx).hasText(space_before_operators) && ...
+                                    'message', msg)]; %#ok
+        elseif tokenlist(op_idx).hasText(space_before_operators) && ...
                ~has_space_before
-            msg = sprintf('no spaces before operator ''%s''', tokens(idx).text);
-            report = [report struct('token', tokens(idx), ...
+            msg = sprintf('no spaces before operator ''%s''', ...
+                          tokenlist(op_idx).text);
+            report = [report struct('token', tokenlist(op_idx), ...
                                     'severity', 1, ...
-                                    'message', msg)];
+                                    'message', msg)]; %#ok
         end
     end
 end
 
 
-function report = check_variables(varlist, scope_tokens, description)
+function report = check_variables(varlist, tokenlist, description)
+%CHECK_VARIABLES checks all variables in VARLIST, as used in TOKENLIST,
+%   and REPORTs on problems with these variables. DESCRIPTION is used
+%   to describe the variable in REPORT.
+%
+%   Problems with variables can be:
+%   - The variable shadows a built-in
+%   - The variable has a very short name and is used very often.
+%
+%   In general, variable name lengths should correlate with the amount
+%   of code they are used in. If variables are used over a long piece
+%   of code, the programmer will stumble across the variable often,
+%   and it should have a descriptive name. Short variable names are
+%   only allowed if they are ephemeral, such as loop counters in small
+%   loops. There, they don't need to be remembered for long, thus a short
+%   name is permissible.
+%
+%   returns a struct array REPORT with fields `token`, `message`, and
+%   `severity`.
+%
+%   This check can be switched off by setting `do_check_variables` in
+%   CHECK_SETTINGS to FALSE.
+
     report = struct('token', {}, 'severity', {}, 'message', {});
     if ~check_settings('do_check_variables')
         return
     end
 
-    for var=varlist
-        if does_shadow(var.text)
-            msg = sprintf('%s ''%s'' shadows a built-in', description, var.text);
-            report = [report struct('token', var, ...
+    for variable = varlist
+        if does_shadow(variable.text)
+            msg = sprintf('%s ''%s'' shadows a built-in', ...
+                          description, variable.text);
+            report = [report struct('token', variable, ...
                                     'severity', 2, ...
-                                    'message', msg)];
+                                    'message', msg)]; %#ok
         end
-        [usage, spread] = get_variable_usage(var.text, scope_tokens);
-        if (spread > 3  && length(var.text) <= 3) || ...
-           (spread > 10 && length(var.text) <= 5)
-            msg = sprintf('%s ''%s'' is very short (used %i times across %i lines)', ...
-                          description, var.text, usage, spread);
-            report = [report struct('token', var, ...
+        [numuses, spread] = get_variable_usage(variable.text, tokenlist);
+        usage_descr = sprintf('(used %i times across %i lines)', ...
+                              numuses, spread);
+        varlen = length(variable.text);
+
+        short_spread = check_settings('lo_varname_short_spread');
+        short_length = check_settings('lo_varname_short_length');
+        long_spread = check_settings('lo_varname_long_spread');
+        long_length = check_settings('lo_varname_long_length');
+        slightly_too_short = ...
+            (spread > short_spread && varlen <= short_length) || ...
+            (spread > long_spread && varlen <= long_length);
+
+        short_spread = check_settings('hi_varname_short_spread');
+        short_length = check_settings('hi_varname_short_length');
+        long_spread = check_settings('hi_varname_long_spread');
+        long_length = check_settings('hi_varname_long_length');
+        much_too_short = ...
+            (spread > short_spread && varlen <= short_length) || ...
+            (spread > long_spread && varlen <= long_length);
+
+
+        if slightly_too_short
+            msg = sprintf('%s ''%s'' is very short %s', ...
+                          description, variable.text, usage_descr);
+            report = [report struct('token', variable, ...
                                     'severity', 1, ...
-                                    'message', msg)];
-        elseif (spread > 5  && length(var.text) <= 3) || ...
-               (spread > 15 && length(var.text) <= 5)
-            msg = sprintf('%s ''%s'' is too short (used %i times across %i lines)', ...
-                          description, var.text, usage, spread);
-            report = [report struct('token', var, ...
+                                    'message', msg)]; %#ok
+        elseif much_too_short
+            msg = sprintf('%s ''%s'' is too short %s', ...
+                          description, variable.text, usage_descr);
+            report = [report struct('token', variable, ...
                                     'severity', 2, ...
-                                    'message', msg)];
+                                    'message', msg)]; %#ok
         end
     end
 end
 
 
-function [usage, spread] = get_variable_usage(name, tokens)
-    uses = tokens(strcmp({tokens.text}, name) & ...
-                  strcmp({tokens.type}, 'identifier'));
-    usage = length(uses);
-    lines = [uses.line];
-    spread = max(lines)-min(lines);
+function [numuses, linerange] = get_variable_usage(varname, tokenlist)
+%GET_VARIABLE_USAGE finds all uses of variable VARNAME in TOKENLIST
+%   Returns the number of uses NUMUSES and the range of lines LINERANGE
+%   in which the variable is used.
+
+    uses = tokenlist(strcmp({tokenlist.text}, varname) & ...
+                     strcmp({tokenlist.type}, 'identifier'));
+    numuses = length(uses);
+    linelist = [uses.line];
+    linerange = max(linelist)-min(linelist);
 end
 
 
-function report = check_mlint_warnings(mlintInfo, func_start, func_stop)
+function report = check_mlint_warnings(mlint_info, tokenlist)
+%CHECK_MLINT_WARNINGS reads through MLINT_INFO and REPORTs on all messages
+%   that refer to the code in TOKENLIST.
+%
+%   returns a struct array REPORT with fields `token`, `message`, and
+%   `severity`.
+%
+%   This check can be switched off by setting `do_check_mlint_warnings` in
+%   CHECK_SETTINGS to FALSE.
+
     report = struct('token', {}, 'severity', {}, 'message', {});
     if ~check_settings('do_check_mlint_warnings')
         return
     end
 
-    mlintInfo = mlintInfo([mlintInfo.line] >= func_start);
-    mlintInfo = mlintInfo([mlintInfo.line] <= func_stop);
-    mlintInfo = mlintInfo(~strcmp({mlintInfo.id}, 'CABE'));
-    if isempty(mlintInfo)
+    mlint_info = mlint_info([mlint_info.line] >= tokenlist(1).line);
+    mlint_info = mlint_info([mlint_info.line] <= tokenlist(end).line);
+    mlint_info = mlint_info(~strcmp({mlint_info.id}, 'CABE'));
+    if isempty(mlint_info)
         return
     end
-    for idx=1:length(mlintInfo)
-        info = mlintInfo(idx);
-        token = Token('special', 'mlint warning', info.line, info.column(1));
+    for idx = 1:length(mlint_info)
+        mlint_msg = mlint_info(idx);
+        token = Token('special', 'mlint warning', ...
+                      mlint_msg.line, mlint_msg.column(1));
         report = [report struct('token', token, ...
                                 'severity', 2, ...
-                                'message', info.message)];
+                                'message', mlint_msg.message)]; %#ok
     end
 end
 
 
-function print_shadow(varname)
-    if does_shadow(varname)
-        fprintf('[\bShadows a built-in!]\b');
-    end
-end
+function is_builtin = does_shadow(varname)
+%DOES_SHADOW figures out if variable with name VARNAME shadows a built-in
+%   function or variable.
+%
+%   returns a boolean IS_BUILTIN.
 
-
-function yesNo = does_shadow(varname)
-    yesNo = false;
-    if any(exist(varname) == [2 3 4 5 6 8])
+    if any(exist(varname) == [2 3 4 5 6 8]) %#ok
+        % now we know that something with name `varname` exists. But is it
+        % a built-in, or something I wrote?
+        % `which` can tell, in one of three spellings:
         shadows = which(varname, '-all');
         builtinfun = 'is a built-in method';
         builtinstr = 'built-in';
-        for idx=1:length(shadows)
+        for idx = 1:length(shadows)
             shadow = shadows{idx};
             if ( length(shadow) >= length(matlabroot) && ...
                  strcmp(shadow(1:length(matlabroot)), matlabroot) ) || ...
@@ -477,46 +623,160 @@ function yesNo = does_shadow(varname)
                  strcmp(shadow(1:length(builtinstr)), builtinstr) ) || ...
                ( length(shadow) >= length(builtinfun) && ...
                  strcmp(shadow(end-length(builtinfun)+1:end), builtinfun) )
-                yesNo = true;
+                is_builtin = true;
                 return
             end
         end
     end
+    is_builtin = false;
 end
 
 
-function report = check_line_length(tokens)
+function report = check_line_length(tokenlist)
+%CHECK_LINE_LENGTH walks through TOKENLIST and REPORTs on the length of
+%   all lines.
+%
+%   While line length should not matter with today's high-resolution
+%   displays, it is still useful to limit line lengths in order to be
+%   able to fit several editor panes next to one another, or to be able
+%   print the source code.
+%
+%   - By default, lines longer than 75 characters are flagged
+%     as `very long`, and
+%   - lines longer than 90 characters are flagged as `too long`.
+%
+%   returns a struct array REPORT with fields `token`, `message`, and
+%   `severity`.
+%
+%   This check can be switched off by setting `do_check_line_length` in
+%   CHECK_SETTINGS to FALSE.
+
     report = struct('token', {}, 'message', {}, 'severity', {});
     if ~check_settings('do_check_line_length')
         return
     end
 
-    lines = split_lines(tokens);
-    for line_idx=1:length(lines)
-        line_tokens = lines{line_idx};
+    linelist = split_lines(tokenlist);
+    for line_idx = 1:length(linelist)
+        line_tokens = linelist{line_idx};
         line_text = horzcat([line_tokens.text]);
         if length(line_text) > 75
-            token = Token('special', 'line warning', line_tokens(1).line, ...
-                          length(line_text));
-            report = [report struct('token', token, ...
+            report_token = Token('special', 'line warning', ...
+                                 line_tokens(1).line, ...
+                                 length(line_text));
+            report = [report struct('token', report_token, ...
                                     'message', 'line very long', ...
-                                    'severity', 1)];
+                                    'severity', 1)]; %#ok
         elseif length(line_text) > 90
-            token = Token('special', 'line warning', line_tokens(1).line, ...
-                          length(line_text));
-            report = [report struct('token', token, ...
+            report_token = Token('special', 'line warning', ...
+                                 line_tokens(1).line, ...
+                                 length(line_text));
+            report = [report struct('token', report_token, ...
                                     'message', 'line too long', ...
-                                    'severity', 2)];
+                                    'severity', 2)]; %#ok
         end
     end
 end
 
 
-function report = check_indentation(tokens)
+function report = check_indentation(tokenlist)
+%CHECK_INDENTATION parses TOKENLIST and REPORTs about its indentation.
+%
+%   Indentation is one of the primary means of making code easy to read,
+%   by highlighting the structure of the code. If code is not indented
+%   correctly, it can be hard to see where where nested blocks (if, for,
+%   etc.) begin and end.
+%
+%   The first line is assumed to be indented correctly, and subsequent
+%   indentation follows the normal MATLAB indentation rules:
+%
+%   - Indent after `for`, `parfor`, `while`, `if`, `switch`, `classdef`,
+%                  `events`, `properties`, `enumeration`, `methods`,
+%                  `function`.
+%   - Dedent for `end`
+%   - Dedent momentarily for `else`, `elseif`, `case`.
+%   - Comments are allowed to be indented one level out, and any amount of
+%     deeper indentation than the source code.
+%   - Continuation lines must be indented deeper than the surrounding
+%     source code.
+%
+%   returns a struct array REPORT with fields `token`, `message`, and
+%   `severity`.
+%
+%   This check can be switched off by setting `do_check_indentation` in
+%   CHECK_SETTINGS to FALSE.
+
     report = struct('token', {}, 'message', {}, 'severity', {});
     if ~check_settings('do_check_indentation')
         return
     end
+
+    linelist = split_lines(tokenlist);
+    previous_indent = get_line_indentation(linelist{1});
+
+    for line_idx = 1:length(linelist)
+        line_tokens = linelist{line_idx};
+        is_continuation = is_continuation_line(line_idx, linelist);
+
+        if isempty(line_tokens)
+            continue
+        end
+
+        first_nonspace = get_first_nonspace(line_tokens);
+        if ~is_continuation
+            [previous_indent, expected_indent] = ...
+                indentation_rule(previous_indent, first_nonspace);
+        end
+
+        current_indent = get_line_indentation(line_tokens);
+        increment = check_settings('indentation_step');
+
+        incorrect_comment = ...
+            first_nonspace.hasType('comment') && ...
+            ~(current_indent >= expected_indent) && ...
+            current_indent ~= expected_indent-increment;
+        incorrect_normal_line = ...
+            ~first_nonspace.hasType('comment') && ...
+            ~is_continuation && ...
+            current_indent ~= expected_indent;
+        incorrect_continuation_line = ...
+            ~first_nonspace.hasType('comment') && ...
+            is_continuation && ...
+            current_indent <= expected_indent;
+
+        if incorrect_comment || incorrect_normal_line || ...
+           incorrect_continuation_line
+            report_token = Token('special', 'indentation warning', ...
+                             line_tokens(1).line, line_tokens(1).col);
+            report_entry = struct('token', report_token, ...
+                                  'message', 'incorrect indentation', ...
+                                  'severity', 2);
+            report = [report report_entry]; %#ok
+        end
+    end
+end
+
+
+function yesNo = is_continuation_line(line_idx, linelist)
+%IS_CONTINUATION_LINE checks if LINELIST{LINE_IDX} is a continuation
+%   of the previous line. YESNO is a boolean.
+
+    if line_idx > 1
+        previous_line = linelist{line_idx-1};
+        yesNo = any(strcmp({previous_line.text}, '...'));
+    else
+        yesNo = false;
+    end
+end
+
+
+function [next_indent, current_indent] = indentation_rule(previous_indent, line_start)
+%INDENTATION_RULE decides about the indentation of the current line
+%   CURRENT_INDENT and the indentation of the next line NEXT_INDENT should
+%   change depending on LINE_START and PREVIOUS_INDENT.
+%
+%   all indentations are given and returned as integers.
+%   LINE_START should be a Token.
 
     beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
                   'events' 'properties' 'enumeration' 'methods' ...
@@ -524,90 +784,57 @@ function report = check_indentation(tokens)
     middles = {'else' 'elseif' 'case'};
     ends = {'end'};
 
-    lines = split_lines(tokens);
-    previous_indent = get_line_indentation(lines{1});
-
-    for line_idx=1:length(lines)
-        line_tokens = lines{line_idx};
-        if line_idx > 1
-            previous_line = lines{line_idx-1};
-            is_continuation = any(strcmp({previous_line.text}, '...'));
-        else
-            is_continuation = false;
-        end
-
-        if isempty(line_tokens)
-            continue
-        end
-
-        first_nonspace = get_first_nonspace(line_tokens);
-
-        indent = check_settings('indentation_step');
-        if first_nonspace.isEqual('keyword', beginnings)
-            expected_indent = previous_indent;
-            previous_indent = previous_indent + indent;
-        elseif first_nonspace.isEqual('keyword', middles)
-            expected_indent = previous_indent - indent;
-        elseif first_nonspace.isEqual('keyword', ends)
-            expected_indent = previous_indent - indent;
-            previous_indent = previous_indent - indent;
-        elseif is_continuation
-            % same rules as in previous line
-        else
-            expected_indent = previous_indent;
-        end
-
-        current_indent = get_line_indentation(line_tokens);
-
-        if first_nonspace.hasType('comment')
-            if ~(current_indent >= expected_indent) && current_indent ~= expected_indent-indent
-                token = Token('special', 'indentation warning', ...
-                              line_tokens(1).line, line_tokens(1).col);
-                report = [report struct('token', token, ...
-                                        'message', 'incorrect indentation!', ...
-                                        'severity', 2)];
-            end
-        elseif ~is_continuation && current_indent ~= expected_indent
-            token = Token('special', 'indentation warning', ...
-                          line_tokens(1).line, line_tokens(1).col);
-            report = [report struct('token', token, ...
-                                    'message', 'incorrect indentation!', ...
-                                    'severity', 2)];
-        elseif is_continuation && current_indent <= expected_indent
-            token = Token('special', 'indentation warning', ...
-                          line_tokens(1).line, line_tokens(1).col);
-            report = [report struct('token', token, ...
-                                    'message', 'not enough indentation!', ...
-                                    'severity', 2)];
-        end
+    increment = check_settings('indentation_step');
+    if line_start.isEqual('keyword', beginnings)
+        current_indent = previous_indent;
+        next_indent = previous_indent + increment;
+    elseif line_start.isEqual('keyword', middles)
+        current_indent = previous_indent - increment;
+        next_indent = previous_indent;
+    elseif line_start.isEqual('keyword', ends)
+        current_indent = previous_indent - increment;
+        next_indent = previous_indent - increment;
+    else
+        current_indent = previous_indent;
+        next_indent = previous_indent;
     end
 end
 
 
-function indentation = get_line_indentation(tokens)
-    if ~isempty(tokens) && tokens(1).hasType('space')
-        indentation = length(tokens(1).text);
+function indentation = get_line_indentation(line_tokens)
+%GET_LINE_INDENTATION returns the number of spaces at the beginning of
+%   LINE_TOKENS. INDENTATION is an integer.
+
+    if ~isempty(line_tokens) && line_tokens(1).hasType('space')
+        indentation = length(line_tokens(1).text);
     else
         indentation = 0;
     end
 end
 
 
-function token = get_first_nonspace(tokens)
-    idx = 1;
-    while idx < length(tokens) && tokens(idx).hasType('space')
-        idx = idx + 1;
+function token = get_first_nonspace(tokenlist)
+%GET_FIRST_NONSPACE returns the first TOKEN in TOKENLIST that is not a
+%   token of type space.
+
+    token_idx = 1;
+    while token_idx < length(tokenlist) && ...
+          tokenlist(token_idx).hasType('space')
+        token_idx = token_idx + 1;
     end
-    token = tokens(idx);
+    token = tokenlist(token_idx);
 end
 
 
-function lines = split_lines(tokens)
-    lines = {};
+function linelist = split_lines(tokens)
+%SPLIT_LINES splits TOKENS into lines.
+%   returns a cell array LINELIST of Token-arrays.
+
+    linelist = {};
     line_start = 1;
-    for pos=1:length(tokens)
+    for pos = 1:length(tokens)
         if tokens(pos).isEqual('linebreak', sprintf('\n'))
-            lines = [lines {tokens(line_start:pos-1)}];
+            linelist = [linelist {tokens(line_start:pos-1)}]; %#ok
             line_start = pos + 1;
         end
     end
@@ -615,6 +842,11 @@ end
 
 
 function link = open_file_link(filename, linenum)
+%OPEN_FILE_LINK returns a link target for HTML links
+%   the LINK is supposed to be used in <a href="LINK">...</a> links inside
+%   MATLAB. It will generate a linke that opens FILENAME at LINENUM in the
+%   MATLAB editor.
+
     prefix = 'matlab.desktop.editor.openAndGoToLine';
     link = sprintf('matlab:%s(''%s'', %i);', prefix, filename, linenum);
 end

@@ -22,6 +22,15 @@ function value = check_settings(name)
     settings.lo_function_complexity = 10;
     settings.hi_function_complexity = 15;
 
+    settings.lo_varname_short_length = 3;
+    settings.lo_varname_short_spread = 3;
+    settings.lo_varname_long_length = 5;
+    settings.lo_varname_long_spread = 10;
+    settings.hi_varname_short_length = 3;
+    settings.hi_varname_short_spread = 5;
+    settings.hi_varname_long_length = 5;
+    settings.hi_varname_long_spread = 15;
+
     settings.do_check_comments = true;
     settings.do_check_documentation = true;
     settings.do_check_eval = true;
