@@ -67,7 +67,7 @@ function print_func_report(func, mlintInfo, indentation)
                    check_documentation(func) ...
                    check_comments(func.body) ...
                    check_mlint_warnings(mlintInfo, func.body) ...
-                   check_indentation(func.body) ...
+                   check_indentation(func) ...
                    check_line_length(func.body) ...
                    check_variables(func.arguments, func.body, 'function argument') ...
                    check_variables(func.returns, func.body, 'return argument') ...
@@ -78,7 +78,7 @@ function print_func_report(func, mlintInfo, indentation)
          reports = [check_documentation(func) ...
                     check_comments(func.body) ...
                     check_mlint_warnings(mlintInfo, func.body) ...
-                    check_indentation(func.body) ...
+                    check_indentation(func) ...
                     check_line_length(func.body) ...
                     check_variables(func.variables, func.body, 'variable') ...
                     check_operators(func.body) ...
@@ -681,8 +681,8 @@ function report = check_line_length(tokenlist)
 end
 
 
-function report = check_indentation(tokenlist)
-%CHECK_INDENTATION parses TOKENLIST and REPORTs about its indentation.
+function report = check_indentation(func_struct)
+%CHECK_INDENTATION parses FUNC_STRUCT and REPORTs about its indentation.
 %
 %   Indentation is one of the primary means of making code easy to read,
 %   by highlighting the structure of the code. If code is not indented
@@ -707,14 +707,21 @@ function report = check_indentation(tokenlist)
 %
 %   This check can be switched off by setting `do_check_indentation` in
 %   CHECK_SETTINGS to FALSE.
+%
+%   The setting `indentation_check_like_matlab` controls whether
+%   indentation should be checked like MATLAB does it (top-level function
+%   bodies are not indented in function files) or how every other language
+%   on this planet does it (function bodies are always indented).
 
     report = struct('token', {}, 'message', {}, 'severity', {});
     if ~check_settings('do_check_indentation')
         return
     end
 
-    linelist = split_lines(tokenlist);
-    previous_indent = get_line_indentation(linelist{1});
+    linelist = split_lines(func_struct.body);
+
+    nesting = func_struct.nesting;
+    function_nesting = func_struct.nesting;
 
     for line_idx = 1:length(linelist)
         line_tokens = linelist{line_idx};
@@ -725,13 +732,18 @@ function report = check_indentation(tokenlist)
         end
 
         first_nonspace = get_first_nonspace(line_tokens);
+
+
         if ~is_continuation
-            [previous_indent, expected_indent] = ...
-                indentation_rule(previous_indent, first_nonspace);
+            [nesting, function_nesting, correction] = ...
+               indentation_rule(nesting, function_nesting, first_nonspace);
         end
 
-        current_indent = get_line_indentation(line_tokens);
         increment = check_settings('indentation_step');
+        expected_indent = (nesting+correction) * increment;
+        expected_indent = max(expected_indent, 0);
+
+        current_indent = get_line_indentation(line_tokens);
 
         incorrect_comment = ...
             first_nonspace.hasType('comment') && ...
@@ -772,33 +784,76 @@ function yesNo = is_continuation_line(line_idx, linelist)
 end
 
 
-function [next_indent, current_indent] = indentation_rule(previous_indent, line_start)
+function [nesting, function_nesting, correction] = indentation_rule(nesting, function_nesting, first_token)
 %INDENTATION_RULE decides about the indentation of the current line
-%   CURRENT_INDENT and the indentation of the next line NEXT_INDENT should
-%   change depending on LINE_START and PREVIOUS_INDENT.
+%   NESTING and FUNCTION_NESTING will change depending on the
+%   FIRST_TOKEN on the current line.
 %
-%   all indentations are given and returned as integers.
-%   LINE_START should be a Token.
+%   NESTING holds the current nesting within if/for/function blocks and
+%   FUNCTION_NESTING holds the current nesting within function blocks.
+%   CORRECTION is an offset on NESTING for the current line only.
+%
+%   In case of scripts and class files, FUNCTION_NESTING is
+%   effectively ignored. In case of function files, FUNCTION_NESTING
+%   is used to determine whether the current function is a top-level
+%   function (whose body should not be indented) or a nested function
+%   (whose body should be indented).
+%
+%   All indentations are given and returned as integer levels of
+%   indentation. Depending on your editor setup, one level might correspond
+%   to 2, 3, 4, or 8 spaces.
+%
+%   The correct indentation for the current line is (by default):
+%       (nesting + correction)*4 spaces
 
     beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
                   'events' 'properties' 'enumeration' 'methods' ...
                   'function'};
     middles = {'else' 'elseif' 'case'};
-    ends = {'end'};
 
-    increment = check_settings('indentation_step');
-    if line_start.isEqual('keyword', beginnings)
-        current_indent = previous_indent;
-        next_indent = previous_indent + increment;
-    elseif line_start.isEqual('keyword', middles)
-        current_indent = previous_indent - increment;
-        next_indent = previous_indent;
-    elseif line_start.isEqual('keyword', ends)
-        current_indent = previous_indent - increment;
-        next_indent = previous_indent - increment;
+    % deactivate function file rules in class files:
+    if first_token.isEqual('keyword', 'classdef')
+        function_nesting = nan;
+    end
+
+    if ~check_settings('indentation_check_like_matlab')
+        function_nesting = nan;
+    end
+
+    % beginning of a function:
+    if first_token.isEqual('keyword', 'function')
+        function_nesting = function_nesting + 1;
+        nesting = nesting + 1;
+        correction = -1;
+    % any other beginning:
+    elseif first_token.isEqual('keyword', beginnings)
+        nesting = nesting + 1;
+        correction = -1;
+    % end of a function in:
+    elseif first_token.isEqual('keyword', 'end') && ...
+           nesting == function_nesting
+        function_nesting = function_nesting - 1;
+        nesting = nesting - 1;
+        if function_nesting == 1
+            correction = +1;
+        else
+            correction = 0;
+        end
+    % any other end:
+    elseif first_token.isEqual('keyword', 'end')
+        nesting = nesting - 1;
+        correction = 0;
+    % any middle (else, elseif, case):
+    elseif first_token.isEqual('keyword', middles)
+        correction = -1;
+    % a normal line:
     else
-        current_indent = previous_indent;
-        next_indent = previous_indent;
+        correction = 0;
+    end
+
+    % if this is in a top-level function:
+    if function_nesting == 1
+        correction = correction - 1;
     end
 end
 
@@ -818,6 +873,7 @@ end
 function token = get_first_nonspace(tokenlist)
 %GET_FIRST_NONSPACE returns the first TOKEN in TOKENLIST that is not a
 %   token of type space.
+%   This can be useful to return the first "real" token on a line.
 
     token_idx = 1;
     while token_idx < length(tokenlist) && ...
@@ -835,8 +891,9 @@ function linelist = split_lines(tokens)
     linelist = {};
     line_start = 1;
     linebreaks = {sprintf('\n'), sprintf('\r\n')};
-    for pos = 1:length(tokens)
-        if tokens(pos).isEqual('linebreak', linebreaks)
+    for pos = 1:length(tokens)+1
+        if pos == length(tokens)+1 || ...
+           tokens(pos).isEqual('linebreak', linebreaks)
             linelist = [linelist {tokens(line_start:pos-1)}]; %#ok
             line_start = pos + 1;
         end

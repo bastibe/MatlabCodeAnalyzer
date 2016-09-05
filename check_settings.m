@@ -44,6 +44,7 @@ function value = check_settings(name)
     settings.do_check_indentation = true;
 
     settings.indentation_step = 4;
+    settings.indentation_check_like_matlab = true;
 
     value = settings.(name);
 end
