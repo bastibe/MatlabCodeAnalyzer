@@ -655,19 +655,21 @@ function report = check_line_length(tokenlist)
     if ~check_settings('do_check_line_length')
         return
     end
+    lo_line_length = check_settings('lo_line_length');
+    hi_line_length = check_settings('hi_line_length');
 
     linelist = split_lines(tokenlist);
     for line_idx = 1:length(linelist)
         line_tokens = linelist{line_idx};
-        line_text = horzcat([line_tokens.text]);
-        if length(line_text) > 75
+        line_text = [line_tokens.text];
+        if length(line_text) > lo_line_length
             report_token = Token('special', 'line warning', ...
                                  line_tokens(1).line, ...
                                  length(line_text));
             report = [report struct('token', report_token, ...
                                     'message', 'line very long', ...
                                     'severity', 1)]; %#ok
-        elseif length(line_text) > 90
+        elseif length(line_text) > hi_line_length
             report_token = Token('special', 'line warning', ...
                                  line_tokens(1).line, ...
                                  length(line_text));

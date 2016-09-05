@@ -22,6 +22,9 @@ function value = check_settings(name)
     settings.lo_function_complexity = 10;
     settings.hi_function_complexity = 15;
 
+    settings.lo_line_length = 75;
+    settings.hi_line_length = 90;
+
     settings.lo_varname_short_length = 3;
     settings.lo_varname_short_spread = 3;
     settings.lo_varname_long_length = 5;
