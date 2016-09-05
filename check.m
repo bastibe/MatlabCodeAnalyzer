@@ -832,8 +832,9 @@ function linelist = split_lines(tokens)
 
     linelist = {};
     line_start = 1;
+    linebreaks = {sprintf('\n'), sprintf('\r\n')};
     for pos = 1:length(tokens)
-        if tokens(pos).isEqual('linebreak', sprintf('\n'))
+        if tokens(pos).isEqual('linebreak', linebreaks)
             linelist = [linelist {tokens(line_start:pos-1)}]; %#ok
             line_start = pos + 1;
         end

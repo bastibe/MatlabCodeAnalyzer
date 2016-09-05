@@ -38,7 +38,7 @@ function tokenlist = tokenize_code(source_code)
     unary_operators = '+-@~';
 
     spaces = sprintf(' \t');
-    breaks = sprintf('\n');
+    breaks = sprintf('\n\r');
     number_start = '0123456789';
     number_body = [number_start 'eEij.'];
     name_start = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -156,12 +156,18 @@ function tokenlist = tokenize_code(source_code)
             add_token('pair', letter);
         % new lines are line breaks and increment the line:
         elseif any(letter == breaks)
-            pos = pos + 1;
-            add_token('linebreak', letter);
-            % add the token before incrementing the line to to avoid
-            % confusing add_token
-            line_num = line_num + 1;
-            line_start = pos;
+            % split into individual line breaks
+            start = pos;
+            line_breaks = regexp(skip(breaks), '(\n)|(\r\n)', 'match');
+            pos = start;
+            for line_break = line_breaks
+                pos = pos + length(line_break{1});
+                add_token('linebreak', line_break{1});
+                % add the token before incrementing the line to to avoid
+                % confusing add_token
+                line_num = line_num + 1;
+                line_start = pos;
+            end
             is_first_symbol = true;
         % `,` and `;` are line breaks that do not increment the line,
         % or simple operators if they occur within a pair
@@ -203,7 +209,7 @@ function tokenlist = tokenize_code(source_code)
     %   become the Token's `type` and `text` property.
     %   this modifies TOKENLIST!
 
-        char_num = pos-line_start-length(token_text);
+        char_num = pos-line_start-length(token_text)+1;
         tokenlist(length(tokenlist)+1) = Token(token_type, token_text, ...
                                                line_num, char_num);
     end
@@ -213,7 +219,7 @@ function tokenlist = tokenize_code(source_code)
     %   this modifies POS!
 
         string_start = pos;
-        while any(source_code(pos) == letters)
+        while any(source_code(pos) == letters) && pos < length(source_code)
             pos = pos + 1;
         end
         string = source_code(string_start:pos-1);
@@ -236,7 +242,7 @@ function tokenlist = tokenize_code(source_code)
     %   this modifies POS!
 
         string_start = pos;
-        while source_code(pos) ~= sprintf('\n')
+        while all(source_code(pos) ~= sprintf('\r\n'))
             pos = pos + 1;
         end
         string = source_code(string_start:pos-1);
@@ -270,7 +276,7 @@ function tokenlist = tokenize_code(source_code)
         is_first_statement = false;
         while pos <= length(source_code)
             % line break:
-            if source_code(pos) == sprintf('\n')
+            if any(source_code(pos) == sprintf('\n\r'))
                 is_first_statement = true;
             % don't change `is_first_statement` while skipping spaces:
             elseif any(source_code(pos) == sprintf('\t '))
