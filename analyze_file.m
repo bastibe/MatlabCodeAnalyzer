@@ -16,6 +16,9 @@ function blocks = analyze_file(filename, tokenlist)
 %           'Class', or 'Script'.
 %   - filename: the FILENAME.
 
+% (c) 2016, Bastian Bechtold
+% This code is licensed under the terms of the BSD 3-clause license
+
     beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
                   'events' 'properties' 'enumeration' 'methods' ...
                   'function'};

@@ -33,6 +33,8 @@ function check(filename)
 %   - no spaces around some operators
 %   - use of dangerous functions like eval
 
+% (c) 2016, Bastian Bechtold
+% This code is licensed under the terms of the BSD 3-clause license
 
     [requiredFiles, requiredProducts] = ...
         matlab.codetools.requiredFilesAndProducts(filename);
