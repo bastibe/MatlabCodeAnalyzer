@@ -110,23 +110,23 @@ function print_code_report(func, mlintInfo, indentation)
         fprintf('\n');
     end
 
-    reports = [check_documentation(func) ...
-               check_comments(func.body) ...
-               check_mlint_warnings(mlintInfo, func.body) ...
-               check_indentation(func) ...
-               check_line_length(func.body) ...
-               check_variables(func.variables, func.body, 'variable') ...
-               check_operators(func.body) ...
-               check_eval(func.body)];
+    reports = [report_documentation(func) ...
+               report_comments(func.body) ...
+               report_mlint_warnings(mlintInfo, func.body) ...
+               report_indentation(func) ...
+               report_line_length(func.body) ...
+               report_variables(func.variables, func.body, 'variable') ...
+               report_operators(func.body) ...
+               report_eval(func.body)];
 
     if any(strcmp(func.type, functypes))
         reports = [reports ...
-                   check_variables(func.name, func.body, ...
-                                   'function') ...
-                   check_variables(func.arguments, func.body, ...
-                                   'function argument') ...
-                   check_variables(func.returns, func.body, ...
-                                   'return argument')];
+                   report_variables(func.name, func.body, ...
+                                    'function') ...
+                   report_variables(func.arguments, func.body, ...
+                                    'function argument') ...
+                   report_variables(func.returns, func.body, ...
+                                    'return argument')];
     end
 
     if ~isempty(reports)
@@ -410,8 +410,8 @@ function print_report(report, indentation, filename)
 end
 
 
-function report = check_comments(tokenlist)
-%CHECK_COMMENTS REPORTs on the number of comments in TOKENLIST.
+function report = report_comments(tokenlist)
+%REPORT_COMMENTS REPORTs on the number of comments in TOKENLIST.
 %
 %   Comments should not describe the code itself, but provide context
 %   for reading the code. In other words, they should describe the
@@ -452,8 +452,8 @@ function report = check_comments(tokenlist)
 end
 
 
-function report = check_documentation(func_struct)
-%CHECK_DOCUMENTATION REPORTs on problems with the documentation of the
+function report = report_documentation(func_struct)
+%REPORT_DOCUMENTATION REPORTs on problems with the documentation of the
 %   function in FUNC_STRUCT.
 %
 %   Documentation is very important for humans. Code is not primarily
@@ -543,8 +543,8 @@ function doc_text = get_function_documentation(tokenlist)
 end
 
 
-function report = check_eval(tokenlist)
-%CHECK_EVAL REPORTs on uses of `eval` in TOKENLIST.
+function report = report_eval(tokenlist)
+%REPORT_EVAL REPORTs on uses of `eval` in TOKENLIST.
 %
 %   Using `eval` is *never* the right thing to do. There is *always*
 %   a better way. Seriously.
@@ -571,8 +571,8 @@ function report = check_eval(tokenlist)
 end
 
 
-function report = check_operators(tokenlist)
-%CHECK_OPERATORS reports on incorrectly used operators in TOKENLIST
+function report = report_operators(tokenlist)
+%REPORT_OPERATORS reports on incorrectly used operators in TOKENLIST
 %
 %   To improve readability, operators should be treated like punctuation
 %   in regular English, i.e. be preceded and followed by spaces just like
@@ -632,8 +632,8 @@ function report = check_operators(tokenlist)
 end
 
 
-function report = check_variables(varlist, tokenlist, description)
-%CHECK_VARIABLES checks all variables in VARLIST, as used in TOKENLIST,
+function report = report_variables(varlist, tokenlist, description)
+%REPORT_VARIABLES checks all variables in VARLIST, as used in TOKENLIST,
 %   and REPORTs on problems with these variables. DESCRIPTION is used
 %   to describe the variable in REPORT.
 %
@@ -720,8 +720,8 @@ function [numuses, linerange] = get_variable_usage(varname, tokenlist)
 end
 
 
-function report = check_mlint_warnings(mlint_info, tokenlist)
-%CHECK_MLINT_WARNINGS reads through MLINT_INFO and REPORTs on all messages
+function report = report_mlint_warnings(mlint_info, tokenlist)
+%REPORT_MLINT_WARNINGS reads through MLINT_INFO and REPORTs on all messages
 %   that refer to the code in TOKENLIST.
 %
 %   returns a struct array REPORT with fields `token`, `message`, and
@@ -782,8 +782,8 @@ function is_builtin = does_shadow(varname)
 end
 
 
-function report = check_line_length(tokenlist)
-%CHECK_LINE_LENGTH walks through TOKENLIST and REPORTs on the length of
+function report = report_line_length(tokenlist)
+%REPORT_LINE_LENGTH walks through TOKENLIST and REPORTs on the length of
 %   all lines.
 %
 %   While line length should not matter with today's high-resolution
@@ -831,8 +831,8 @@ function report = check_line_length(tokenlist)
 end
 
 
-function report = check_indentation(func_struct)
-%CHECK_INDENTATION parses FUNC_STRUCT and REPORTs about its indentation.
+function report = report_indentation(func_struct)
+%REPORT_INDENTATION parses FUNC_STRUCT and REPORTs about its indentation.
 %
 %   Indentation is one of the primary means of making code easy to read,
 %   by highlighting the structure of the code. If code is not indented
