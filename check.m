@@ -1,54 +1,102 @@
 function check(filename)
-    %CHECK a source file for problems
+%CHECK a source file FILENAME for problems
+%
+%   CHECK does a deep analysis of the code in FILENAME, and reports on
+%   problems with the code.
+%
+%   Each function defined in the file is reported separately, with
+%   separate statistics and warnings. Minor warnings are written in
+%   black, while major warnings are printed red. Even though some
+%   warnings are somewhat subjective, in general, at least all red
+%   issues *should* be fixed.
+%
+%   Every warning is presented as a clickable link that will jump to the
+%   correct line in the editor.
+%
+%   Many warnings have configurable settings in CHECK_SETTINGS. Note
+%   though that *disabling* a warning does not count as *fixing* it.
+%
+%   Warnings include:
+%   - Required files to run the code
+%   - Required toolboxes to run the code
+%   - High number of lines
+%   - High number of function arguments
+%   - High number of used variables
+%   - Too many levels of nesting
+%   - Too much function complexity
+%   - MLINT warnings
+%   - missing documentation, or missing documentation of function arguments
+%   - not enough comments
+%   - incorrect or insufficient indentation
+%   - excessive line length
+%   - too short variable names
+%   - no spaces around some operators
+%   - use of dangerous functions like eval
+
 
     [requiredFiles, requiredProducts] = ...
         matlab.codetools.requiredFilesAndProducts(filename);
     % manually fetch file name, since checkcode won't do it correctly
     fullfilename = which(filename);
-    mlintInfo = checkcode(fullfilename, '-cyc', '-id', '-struct' ,'-fullpath');
+    mlintInfo = ...
+        checkcode(fullfilename, '-cyc', '-id', '-struct', '-fullpath');
 
-    text = fileread(filename);
-    tokens = tokenize_code(text);
+    source_code = fileread(filename);
+    tokens = tokenize_code(source_code);
     func_report = analyze_file(fullfilename, tokens);
 
     fprintf('Code Analysis for <strong>%s</strong>\n\n', filename);
 
-    fprintf('  Depends upon: ');
-    for idx=1:length(requiredFiles)
-        [~, basename, ext] = fileparts(requiredFiles{idx});
+    fprintf('  Required files: ');
+    for file_idx = 1:length(requiredFiles)
+        [~, basename, ext] = fileparts(requiredFiles{file_idx});
         fprintf('%s%s', basename, ext);
-        if idx < length(requiredFiles)
+        if file_idx < length(requiredFiles)
             fprintf(', ');
         else
             fprintf('\n');
         end
     end
 
-    fprintf('  Depends upon: ');
-    for idx=1:length(requiredProducts)
-        fprintf('%s%s', requiredProducts(idx).Name);
-        if idx < length(requiredProducts)
+    fprintf('  Required toolboxes: ');
+    for product_idx = 1:length(requiredProducts)
+        fprintf('%s%s', requiredProducts(product_idx).Name);
+        if product_idx < length(requiredProducts)
             fprintf(', ');
         else
             fprintf('\n\n');
         end
     end
 
-    for func=func_report
-        print_func_report(func, mlintInfo, 2);
+    for func = func_report
+        print_code_report(func, mlintInfo, 2);
     end
 end
 
 
-function print_func_report(func, mlintInfo, indentation)
-    prefix = repmat(' ', 1, indentation);
-    fprintf('%s%s <strong>%s</strong> (<a href="%s">Line %i, col %i</a>): ', ...
-            prefix, func.type, func.name.text, ...
-            open_file_link(func.filename, func.name.line), ...
-            func.name.line, func.name.col);
-    fprintf('\n\n');
+function print_code_report(func, mlintInfo, indentation)
+%PRINT_CODE_REPORT prints a comprehensive report about a code block FUNC
+%   The printed text is indented at INDENTATION spaces.
+%
+%   FUNC is analyzed for many common defects and stylistic mishaps, and
+%   prints a nicely formatted list of issues, plus some additional
+%   statistics about the code block.
+%
+%   Depending on the type of code block (Function, Subfunction, Nested
+%   Function, Class, Script) different kinds of statistics are reported.
+%
+%   Additionally, many warnings are collected and presented, including
+%   MLINT warnings from MLINTINFO.
 
-    if any(strcmp(func.type, {'Function', 'Subfunction', 'Nested Function'}))
+    prefix = repmat(' ', 1, indentation);
+    link = sprintf('<a href="%s">Line %i, col %i</a>', ...
+                   open_file_link(func.filename, func.name.line), ...
+                   func.name.line, func.name.col);
+    fprintf('%s%s <strong>%s</strong> (%s):\n\n', ...
+            prefix, func.type, func.name.text, link);
+
+    functypes = {'Function', 'Subfunction', 'Nested Function'};
+    if any(strcmp(func.type, functypes))
         stats = get_function_stats(func, mlintInfo);
         print_function_stats(stats, indentation+2);
         fprintf('\n');
@@ -62,28 +110,25 @@ function print_func_report(func, mlintInfo, indentation)
         fprintf('\n');
     end
 
-    if any(strcmp(func.type, {'Function', 'Subfunction', 'Nested Function'}))
-        reports = [check_variables(func.name, func.body, 'function') ...
-                   check_documentation(func) ...
-                   check_comments(func.body) ...
-                   check_mlint_warnings(mlintInfo, func.body) ...
-                   check_indentation(func) ...
-                   check_line_length(func.body) ...
-                   check_variables(func.arguments, func.body, 'function argument') ...
-                   check_variables(func.returns, func.body, 'return argument') ...
-                   check_variables(func.variables, func.body, 'variable') ...
-                   check_operators(func.body) ...
-                   check_eval(func.body)];
-    else
-         reports = [check_documentation(func) ...
-                    check_comments(func.body) ...
-                    check_mlint_warnings(mlintInfo, func.body) ...
-                    check_indentation(func) ...
-                    check_line_length(func.body) ...
-                    check_variables(func.variables, func.body, 'variable') ...
-                    check_operators(func.body) ...
-                    check_eval(func.body)];
+    reports = [check_documentation(func) ...
+               check_comments(func.body) ...
+               check_mlint_warnings(mlintInfo, func.body) ...
+               check_indentation(func) ...
+               check_line_length(func.body) ...
+               check_variables(func.variables, func.body, 'variable') ...
+               check_operators(func.body) ...
+               check_eval(func.body)];
+
+    if any(strcmp(func.type, functypes))
+        reports = [reports ...
+                   check_variables(func.name, func.body, ...
+                                   'function') ...
+                   check_variables(func.arguments, func.body, ...
+                                   'function argument') ...
+                   check_variables(func.returns, func.body, ...
+                                   'return argument')];
     end
+
     if ~isempty(reports)
         % First, secondary sort by column
         report_tokens = [reports.token];
@@ -99,70 +144,85 @@ function print_func_report(func, mlintInfo, indentation)
 
     fprintf('\n\n');
 
-    for subfunc=func.children
-        print_func_report(subfunc, mlintInfo, indentation+4)
+    for subfunc = func.children
+        print_code_report(subfunc, mlintInfo, indentation+4)
     end
 end
 
 
-function stats = get_class_stats(func)
-    stats.num_lines = length(split_lines(func.body));
-    stats.num_properties = length(func.variables);
-    stats.num_methods = length(func.children);
+function class_stats = get_class_stats(class_struct)
+%GET_CLASS_STATS analyzes a script CLASS_STRUCT and
+%   gathers some statistics CLASS_STATS about them.
+%
+%   Statistics gathered (fieldname):
+%   - number of lines (num_lines)
+%   - number of properties (num_properties)
+%   - number of methods (num_methods)
+%
+%   The statistics are returned as struct CLASS_STATS
+
+    class_stats.num_lines = length(split_lines(class_struct.body));
+    class_stats.num_properties = length(class_struct.variables);
+    class_stats.num_methods = length(class_struct.children);
 end
 
 
-function print_class_stats(stats, indentation)
+function print_class_stats(class_stats, indentation)
+%PRINT_CLASS_STATS prints some general statistics CLSS_STATS about
+%   a class. The printed text is indented at INDENTATION spaces.
+%
+%   This function prints an evaluation of
+%   - the number of lines in the function
+%   - the number of properties
+%   - the number of methods
+%
+%   All of these values are evaluated as `good` if they are below a
+%   certain low threshold; as `high` if they are above this threshold
+%   and as `too high` and in red text if they exceed a high threshold.
+%   The thresholds can be controlled using the settings
+%   - `lo_class_num_lines` and `hi_class_num_lines`
+%   - `lo_class_num_properties` and `hi_class_num_properties`
+%   - `lo_class_num_methods` and `hi_class_num_methods`
+
     prefix = repmat(' ', 1, indentation);
 
     fprintf('%sNumber of lines: ', prefix);
-    print_evaluation(stats.num_lines, ...
+    print_evaluation(class_stats.num_lines, ...
                      check_settings('lo_class_num_lines'), ...
                      check_settings('hi_class_num_lines'));
 
     fprintf('%sNumber of properties: ', prefix);
-    print_evaluation(stats.num_properties, ...
+    print_evaluation(class_stats.num_properties, ...
                      check_settings('lo_class_num_properties'), ...
                      check_settings('hi_class_num_properties'));
 
     fprintf('%sNumber of methods: ', prefix);
-    print_evaluation(stats.num_methods, ...
+    print_evaluation(class_stats.num_methods, ...
                      check_settings('lo_class_num_methods'), ...
                      check_settings('hi_class_num_methods'));
 end
 
 
-function stats = get_script_stats(func)
-    stats.num_lines = length(split_lines(func.body));
-    stats.num_variables = length(func.variables);
-end
+function script_stats = get_script_stats(script_struct)
+%GET_SCRIPT_STATS analyzes a script SCRIPT_STRUCT and
+%   gathers some statistics SCRIPT_STATS about them.
+%
+%   Statistics gathered (fieldname):
+%   - number of lines (num_lines)
+%   - number of variables used in the function (num_variables)
+%   - the maximum level of indentation in the function (max_indentation)
+%
+%   The statistics are returned as struct SCRIPT_STATS
 
-
-function print_script_stats(stats, indentation)
-    prefix = repmat(' ', 1, indentation);
-
-    fprintf('%sNumber of lines: ', prefix);
-    print_evaluation(stats.num_lines, ...
-                     check_settings('lo_script_num_lines'), ...
-                     check_settings('hi_script_num_lines'));
-
-    fprintf('%sNumber of variables: ', prefix);
-    print_evaluation(stats.num_variables, ...
-                     check_settings('lo_script_num_variables'), ...
-                     check_settings('hi_script_num_variables'));
-end
-
-
-function stats = get_function_stats(func, mlintInfo)
-    stats.num_lines = length(split_lines(func.body));
-    stats.num_arguments = length(func.arguments);
-    stats.num_variables = length(func.variables);
+    script_stats.num_lines = length(split_lines(script_struct.body));
+    script_stats.num_variables = length(script_struct.variables);
 
     % max indentation
-    keywords = func.body(strcmp({func.body.type}, 'keyword'));
+    keyword_indices = strcmp({func_struct.body.type}, 'keyword');
+    keywords = func_struct.body(keyword_indices);
     indentation = 1;
     max_indentation = 0;
-    for keyword=keywords
+    for keyword = keywords
         if keyword.hasText({'if' 'for' 'parfor' 'while' 'switch'})
             indentation = indentation + 1;
             max_indentation = max(max_indentation, indentation);
@@ -170,43 +230,132 @@ function stats = get_function_stats(func, mlintInfo)
             indentation = indentation - 1;
         end
     end
-    stats.max_indentation = max_indentation;
-
-    % cyclomatic complexity
-    mlintInfo = mlintInfo(strcmp({mlintInfo.id}, 'CABE'));
-    mlintInfo = mlintInfo([mlintInfo.line] == func.body(1).line);
-    assert(length(mlintInfo) == 1);
-    pattern = 'The McCabe complexity of ''(?<f>[^'']+)'' is (?<n>[0-9]+)';
-    matches = regexp(mlintInfo.message, pattern, 'names');
-    stats.complexity = str2num(matches.n);
+    script_stats.max_indentation = max_indentation;
 end
 
 
-function print_function_stats(stats, indentation)
+function print_script_stats(script_stats, indentation)
+%PRINT_SCRIPT_STATS prints some general statistics SCRIPT_STATS about
+%   a script. The printed text is indented at INDENTATION spaces.
+%
+%   This function prints an evaluation of
+%   - the number of lines in the function
+%   - the number of variables used in the script
+%   - the maximum level of indentation in the script
+%
+%   All of these values are evaluated as `good` if they are below a
+%   certain low threshold; as `high` if they are above this threshold
+%   and as `too high` and in red text if they exceed a high threshold.
+%   The thresholds can be controlled using the settings
+%   - `lo_script_num_lines` and `hi_script_num_lines`
+%   - `lo_script_num_variables` and `hi_script_num_variables`
+%   - `lo_script_max_indentation` and `hi_script_max_indentation`
     prefix = repmat(' ', 1, indentation);
 
     fprintf('%sNumber of lines: ', prefix);
-    print_evaluation(stats.num_lines, ...
+    print_evaluation(script_stats.num_lines, ...
+                     check_settings('lo_script_num_lines'), ...
+                     check_settings('hi_script_num_lines'));
+
+    fprintf('%sNumber of variables: ', prefix);
+    print_evaluation(script_stats.num_variables, ...
+                     check_settings('lo_script_num_variables'), ...
+                     check_settings('hi_script_num_variables'));
+
+    fprintf('%sNumber of variables: ', prefix);
+    print_evaluation(script_stats.max_indentation, ...
+                     check_settings('lo_script_max_indentation'), ...
+                     check_settings('hi_script_max_indentation'));
+end
+
+
+function func_stats = get_function_stats(func_struct, mlintInfo)
+%GET_FUNCTION_STATS analyzes a function FUNC_STRUCT and MLINTINFO and
+%   gathers some statistics FUNC_STATS about them.
+%
+%   Statistics gathered (fieldname):
+%   - number of lines (num_lines)
+%   - number of function arguments (num_arguments)
+%   - number of variables used in the function (num_variables)
+%   - the maximum level of indentation in the function (max_indentation)
+%   - the function complexity (complexity)
+%
+%   The statistics are returned as struct FUNC_STATS
+
+    func_stats.num_lines = length(split_lines(func_struct.body));
+    func_stats.num_arguments = length(func_struct.arguments);
+    func_stats.num_variables = length(func_struct.variables);
+
+    % max indentation
+    keyword_indices = strcmp({func_struct.body.type}, 'keyword');
+    keywords = func_struct.body(keyword_indices);
+    indentation = 1;
+    max_indentation = 0;
+    for keyword = keywords
+        if keyword.hasText({'if' 'for' 'parfor' 'while' 'switch'})
+            indentation = indentation + 1;
+            max_indentation = max(max_indentation, indentation);
+        elseif keyword.hasText('end')
+            indentation = indentation - 1;
+        end
+    end
+    func_stats.max_indentation = max_indentation;
+
+    % cyclomatic complexity
+    mlintInfo = mlintInfo(strcmp({mlintInfo.id}, 'CABE'));
+    mlintInfo = mlintInfo([mlintInfo.line] == func_struct.body(1).line);
+    assert(length(mlintInfo) == 1);
+    pattern = 'The McCabe complexity of ''(?<f>[^'']+)'' is (?<n>[0-9]+)';
+    matches = regexp(mlintInfo.message, pattern, 'names');
+    func_stats.complexity = str2double(matches.n);
+end
+
+
+function print_function_stats(func_stats, indentation)
+%PRINT_FUNCTION_STATS prints some general statistics FUNC_STATS about
+%   a function. The printed text is indented at INDENTATION spaces.
+%
+%   This function prints an evaluation of
+%   - the number of lines in the function
+%   - the number of function arguments
+%   - the number of variables used in the function
+%   - the maximum level of indentation in the function
+%   - the function complexity
+%
+%   All of these values are evaluated as `good` if they are below a
+%   certain low threshold; as `high` if they are above this threshold
+%   and as `too high` and in red text if they exceed a high threshold.
+%   The thresholds can be controlled using the settings
+%   - `lo_function_num_lines` and `hi_function_num_lines`
+%   - `lo_function_num_arguments` and `hi_function_num_arguments`
+%   - `lo_function_num_variables` and `hi_function_num_variables`
+%   - `lo_function_max_indentation` and `hi_function_max_indentation`
+%   - `lo_function_complexity` and `hi_function_complexity`
+
+    prefix = repmat(' ', 1, indentation);
+
+    fprintf('%sNumber of lines: ', prefix);
+    print_evaluation(func_stats.num_lines, ...
                      check_settings('lo_function_num_lines'), ...
                      check_settings('hi_function_num_lines'));
 
     fprintf('%sNumber of function arguments: ', prefix);
-    print_evaluation(stats.num_arguments, ...
+    print_evaluation(func_stats.num_arguments, ...
                      check_settings('lo_function_num_arguments'), ...
                      check_settings('hi_function_num_arguments'));
 
     fprintf('%sNumber of used variables: ', prefix);
-    print_evaluation(stats.num_variables, ...
+    print_evaluation(func_stats.num_variables, ...
                      check_settings('lo_function_num_variables'), ...
                      check_settings('hi_function_num_variables'));
 
     fprintf('%sMax level of nesting: ', prefix);
-    print_evaluation(stats.max_indentation, ...
+    print_evaluation(func_stats.max_indentation, ...
                      check_settings('lo_function_max_indentation'), ...
                      check_settings('hi_function_max_indentation'));
 
-    fprintf('%sCyclomatic complexity: ', prefix);
-    print_evaluation(stats.complexity, ...
+    fprintf('%sCode complexity: ', prefix);
+    print_evaluation(func_stats.complexity, ...
                      check_settings('lo_function_complexity'), ...
                      check_settings('hi_function_complexity'));
 end
@@ -339,7 +488,8 @@ function report = check_documentation(func_struct)
         return
     end
     template = '%s ''%s'' is not mentioned in the documentation';
-    if isempty(strfind(lower(doc_text), lower(func_struct.name.text)))
+    [~, funcname, ~] = fileparts(func_struct.name.text);
+    if isempty(strfind(lower(doc_text), lower(funcname)))
         msg = sprintf(template, 'function name', func_struct.name.text);
         report = [report struct('token', func_struct.name, ...
                                 'severity', 2, ...

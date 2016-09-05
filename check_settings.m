@@ -10,6 +10,8 @@ function value = check_settings(name)
     settings.hi_script_num_lines = 200;
     settings.lo_script_num_variables = 10;
     settings.hi_script_num_variables = 20;
+    settings.lo_script_max_indentation = 4;
+    settings.hi_script_max_indentation = 8;
 
     settings.lo_function_num_lines = 50;
     settings.hi_function_num_lines = 100;
