@@ -220,8 +220,8 @@ function script_stats = get_script_stats(script_struct)
     script_stats.num_variables = length(script_struct.variables);
 
     % max indentation
-    keyword_indices = strcmp({func_struct.body.type}, 'keyword');
-    keywords = func_struct.body(keyword_indices);
+    keyword_indices = strcmp({script_struct.body.type}, 'keyword');
+    keywords = script_struct.body(keyword_indices);
     indentation = 1;
     max_indentation = 0;
     for keyword = keywords
