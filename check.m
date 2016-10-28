@@ -848,7 +848,7 @@ function report = report_indentation(func_struct)
 %                  `events`, `properties`, `enumeration`, `methods`,
 %                  `function`.
 %   - Dedent for `end`
-%   - Dedent momentarily for `else`, `elseif`, `case`.
+%   - Dedent momentarily for `else`, `elseif`, `case`, `otherwise`.
 %   - Comments are allowed to be indented one level out, and any amount of
 %     deeper indentation than the source code.
 %   - Continuation lines must be indented deeper than the surrounding
@@ -961,7 +961,7 @@ function [nesting, function_nesting, correction] = indentation_rule(nesting, fun
     beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
                   'events' 'properties' 'enumeration' 'methods' ...
                   'function'};
-    middles = {'else' 'elseif' 'case'};
+    middles = {'else' 'elseif' 'case' 'otherwise'};
 
     % deactivate function file rules in class files:
     if first_token.isEqual('keyword', 'classdef')
