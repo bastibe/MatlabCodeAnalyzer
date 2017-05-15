@@ -960,8 +960,8 @@ function [nesting, function_nesting, correction] = indentation_rule(nesting, fun
 
     beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
                   'events' 'properties' 'enumeration' 'methods' ...
-                  'function'};
-    middles = {'else' 'elseif' 'case' 'otherwise'};
+                  'function' 'try'};
+    middles = {'else' 'elseif' 'case' 'otherwise' 'catch'};
 
     % deactivate function file rules in class files:
     if first_token.isEqual('keyword', 'classdef')
