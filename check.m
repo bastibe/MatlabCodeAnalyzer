@@ -958,11 +958,9 @@ function [nesting, function_nesting, correction] = indentation_rule(nesting, fun
 %   The correct indentation for the current line is (by default):
 %       (nesting + correction)*4 spaces
 
-    beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
-                  'events' 'properties' 'enumeration' 'methods' ...
-                  'function' 'try'};
-    middles = {'else' 'elseif' 'case' 'otherwise' 'catch'};
-
+    beginnings = check_settings('beginnings');
+    middles = check_settings('middles');
+    
     % deactivate function file rules in class files:
     if first_token.isEqual('keyword', 'classdef')
         function_nesting = nan;
