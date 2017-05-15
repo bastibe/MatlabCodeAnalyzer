@@ -35,5 +35,12 @@ classdef MatlabIndentedClass
             end
             
         end
+        
+        function foobar = second_function(barfoo)
+            %SECOND_FUNCTION This is an example function for testing the
+            %   indentation check
+            %   foobar, barfoo
+            foobar = barfoo;
+        end
     end
 end
