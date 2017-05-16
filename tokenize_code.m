@@ -33,7 +33,7 @@ function tokenlist = tokenize_code(source_code)
                  '.+' '.-' '.*' './' '.^' '.\' ...
                  '>' '<' '~' '==' '>=' '<=' '~=' ...
                  '@' '=' ',' ';' '||' '&&' '|' '&' '...' ':'};
-    unary_operators = '+-@~';
+    unary_operators = '+-@~.';
 
     spaces = sprintf(' \t');
     breaks = sprintf('\n\r');
