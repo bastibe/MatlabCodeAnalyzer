@@ -49,19 +49,34 @@ classdef MatlabIndentedClass
             varargout = varargin;
         end
         
-        function output = test_linebreak_with_continuation_operator(input)
+        function output = test_linebreak_with_continuation_operator(inputarg)
             %TEST_LINEBREAK_WITH_CONTINUATION_OPERATOR is a test to verify
             %    line continuation operator
-            %    INPUT, OUTPUT
+            %    INPUTARG, OUTPUT
             
             assignment_at_first_line = ...
-                input;
+                inputarg;
             
             assignment_at_second_line = ... some comment
                 assignment_at_first_line;
             
             output = .... 4 dots give also comment
                 assignment_at_second_line;
+        end
+        
+        function test_switch_case(inputarg)
+            %TEST_SWITCH_CASE test indentation of switch case
+            %    INPUTARG
+            %    Some more comments to make the checker happy
+
+            switch inputarg
+                case 1
+                    return
+                case 2
+                    return
+                otherwise
+                    return
+            end
         end
     end
 end
