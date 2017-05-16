@@ -42,5 +42,26 @@ classdef MatlabIndentedClass
             %   foobar, barfoo
             foobar = barfoo;
         end
+        
+        function varargout = variable_length_of_in_and_output(varargin)
+            %VARIABLE_LENGTH_OF_IN_AND_OUTPUT is provided with input param
+            %    VARARGIN and output parameter VARARGOUT
+            varargout = varargin;
+        end
+        
+        function output = test_linebreak_with_continuation_operator(input)
+            %TEST_LINEBREAK_WITH_CONTINUATION_OPERATOR is a test to verify
+            %    line continuation operator
+            %    INPUT, OUTPUT
+            
+            assignment_at_first_line = ...
+                input;
+            
+            assignment_at_second_line = ... some comment
+                assignment_at_first_line;
+            
+            output = .... 4 dots give also comment
+                assignment_at_second_line;
+        end
     end
 end
