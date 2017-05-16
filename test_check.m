@@ -126,3 +126,7 @@ assert(tokens(3).hasType('comment'));
 tokens = tokenize_code('....');
 assert(tokens(1).hasType('punctuation'));
 assert(tokens(2).hasType('comment'));
+
+tokens = tokenize_code('.*...');
+assert(tokens(1).hasType('punctuation'));
+assert(tokens(2).hasType('punctuation'));
