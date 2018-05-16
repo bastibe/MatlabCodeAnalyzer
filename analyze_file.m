@@ -43,7 +43,7 @@ function blocks = analyze_file(filename, tokenlist)
 
         % determine file type (Script, Function, or Class):
         if isempty(main_type) && ...
-           ~current_token.hasType({'newline', 'comment'})
+           ~current_token.hasType({'linebreak', 'comment'})
             if current_token.isEqual('keyword', 'function')
                 main_type = 'Function';
             elseif current_token.isEqual('keyword', 'classdef')
