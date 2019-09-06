@@ -112,3 +112,21 @@ assert(tokens(6).hasType('linebreak'))
 tokens = tokenize_code('[a,b],');
 assert(tokens(3).hasType('punctuation'))
 assert(tokens(6).hasType('linebreak'))
+
+%% comments follow continuation operator
+tokens = tokenize_code('... % this is a comment');
+assert(tokens(1).hasType('punctuation'));
+assert(tokens(3).hasType('comment'));
+
+tokens = tokenize_code('... this is a comment');
+assert(tokens(1).hasType('punctuation'));
+assert(tokens(2).hasType('space'));
+assert(tokens(3).hasType('comment'));
+
+tokens = tokenize_code('....');
+assert(tokens(1).hasType('punctuation'));
+assert(tokens(2).hasType('comment'));
+
+tokens = tokenize_code('.*...');
+assert(tokens(1).hasType('punctuation'));
+assert(tokens(2).hasType('punctuation'));

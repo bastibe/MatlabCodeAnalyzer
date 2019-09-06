@@ -74,5 +74,18 @@ function value = check_settings(name)
     % languages would think this behavior funny:
     settings.indentation_check_like_matlab = true;
 
+    % keywords for tokenize_code
+    settings.keywords = {'for' 'try' 'while' 'if' 'else' 'elseif' 'switch' ...
+                'case' 'otherwise' 'function' 'classdef' 'methods' ...
+                'properties' 'events' 'enumeration' 'parfor' ...
+                'return' 'break' 'continue' 'catch'};
+
+    % keyword beginnings which are considered for indentation calculation
+    settings.beginnings = {'for' 'parfor' 'while' 'if' 'switch' 'classdef' ...
+        'events' 'properties' 'enumeration' 'methods' ...
+        'function' 'try'};
+    % keyword middles which are considered for indentation calculation
+    settings.middles = {'else' 'elseif' 'case' 'otherwise' 'catch'};
+
     value = settings.(name);
 end
