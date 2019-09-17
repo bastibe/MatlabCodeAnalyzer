@@ -307,7 +307,7 @@ function func_stats = get_function_stats(func_struct, mlintInfo)
     mlintInfo = mlintInfo(strcmp({mlintInfo.id}, 'CABE'));
     mlintInfo = mlintInfo([mlintInfo.line] == func_struct.body(1).line);
     assert(length(mlintInfo) == 1);
-    pattern = 'The McCabe complexity of ''(?<f>[^'']+)'' is (?<n>[0-9]+)';
+    pattern = '''(?<f>[^'']+)'' is (?<n>[0-9]+)';
     matches = regexp(mlintInfo.message, pattern, 'names');
     func_stats.complexity = str2double(matches.n);
 end
