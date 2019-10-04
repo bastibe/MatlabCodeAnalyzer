@@ -126,22 +126,30 @@ function tokenlist = tokenize_code(source_code)
         % strings and transpose begin with `'`. The `.'` operator has
         % already been handled above:
         elseif letter == ''''
-            is_first_symbol = false;
-            previous = tokenlist(end);
-            % transpose operator:
-            % To differentiate the start of a string from the transpose
-            % operator, we need to check whether the previous token was a
-            % value or an operator. If a value, `'` means transpose. If an
-            % operator, `'` marks the start of a string.
-            if previous.isEqual('pair', {'}' ']' ')'}) || ...
-               previous.hasType({'identifier' 'number' 'property'})
-                pos = pos + 1;
-                add_token('punctuation', letter);
-            % strings:
-            else
-                string = skip_string();
+            % the first symbol cannot be transpose, so must be string
+            if is_first_symbol
+                string = skip_string('''');
                 add_token('string', string);
+            else
+                previous = tokenlist(end);
+                
+                % transpose operator:
+                % To differentiate the start of a string from the
+                % transpose operator, we need to check whether the
+                % previous token was a value or an operator. If a value,
+                % `'` means transpose. If an operator, `'` marks the start
+                % of a string.
+                if previous.isEqual('pair', {'}' ']' ')'}) || ...
+                   previous.hasType({'identifier' 'number' 'property'})
+                    pos = pos + 1;
+                    add_token('punctuation', letter);
+                % strings:
+                else
+                    string = skip_string('''');
+                    add_token('string', string);
+                end
             end
+            is_first_symbol = false;
         % string that starts with double quotes (")
         elseif letter == '"'
             is_first_symbol = false;
