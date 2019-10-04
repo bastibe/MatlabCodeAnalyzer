@@ -69,7 +69,5 @@ classdef TokenizeTests < matlab.unittest.TestCase
             % Compare actual output with expected output
             obj.verifyEqual(actual, expected);
         end
-        
-        %todo: "let's go", 'He said, "hi"'
     end
 end
