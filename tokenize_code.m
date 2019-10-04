@@ -26,7 +26,6 @@ function tokenlist = tokenize_code(source_code)
     open_pairs = '{[(';
     close_pairs = '}])';
     escapes = '!%';
-    quotes = { '''', '"' };
 
     keywords = check_settings('keywords');
     
@@ -146,7 +145,7 @@ function tokenlist = tokenize_code(source_code)
         % string that starts with double quotes (")
         elseif letter == '"'
             is_first_symbol = false;
-            string = skip_string();
+            string = skip_string('"');
             add_token('string', string);
         % we don't make any distinction between different kinds of parens:
         elseif any(letter == open_pairs)
@@ -252,18 +251,20 @@ function tokenlist = tokenize_code(source_code)
         string = source_code(string_start:pos-1);
     end
 
-    function string = skip_string()
+    function string = skip_string(quote_type)
     %SKIP_STRING skips to the end of the string and returns the STRING
-    %   the STRING includes both quotation marks.
+    %   the STRING includes both quotation marks. QUOTE_TYPE is the
+    %   type of quote character to look for (' or ").
     %   this modifies POS!
 
         string_start = pos;
         while true
-            if ~any(strcmp(source_code(pos), quotes)) || pos == string_start
+            if source_code(pos) ~= quote_type || pos == string_start
                 pos = pos + 1;
-            elseif length(source_code) > pos && any(strcmp(source_code(pos+1), quotes))
+            elseif length(source_code) > pos ...
+                    && source_code(pos+1) == quote_type
                 pos = pos + 2;
-            else % any(strcmp(source_code(pos), quotes))
+            else % source_code(pos) == quote_type
                 pos = pos + 1;
                 break;
             end
@@ -307,8 +308,11 @@ function tokenlist = tokenize_code(source_code)
         while pos < length(source_code)
             letter = source_code(pos);
             % commands can contain literal strings:
-            if any(strcmp(letter, quotes))
-                string_literal = skip_string();
+            if letter == ''''
+                string_literal = skip_string('''');
+                add_token('string', string_literal);
+            elseif letter == '"'
+                string_literal = skip_string('"');
                 add_token('string', string_literal);
             % commands can contain spaces:
             elseif any(letter == spaces)
