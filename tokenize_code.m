@@ -26,6 +26,7 @@ function tokenlist = tokenize_code(source_code)
     open_pairs = '{[(';
     close_pairs = '}])';
     escapes = '!%';
+    quotes = { '''', '"' };
 
     keywords = check_settings('keywords');
     
@@ -142,6 +143,11 @@ function tokenlist = tokenize_code(source_code)
                 string = skip_string();
                 add_token('string', string);
             end
+        % string that starts with double quotes (")
+        elseif letter == '"'
+            is_first_symbol = false;
+            string = skip_string();
+            add_token('string', string);
         % we don't make any distinction between different kinds of parens:
         elseif any(letter == open_pairs)
             is_first_symbol = false;
@@ -253,11 +259,11 @@ function tokenlist = tokenize_code(source_code)
 
         string_start = pos;
         while true
-            if source_code(pos) ~= '''' || pos == string_start
+            if ~any(strcmp(source_code(pos), quotes)) || pos == string_start
                 pos = pos + 1;
-            elseif length(source_code) > pos && source_code(pos+1) == ''''
+            elseif length(source_code) > pos && any(strcmp(source_code(pos+1), quotes))
                 pos = pos + 2;
-            else % source_code(pos) == ''''
+            else % any(strcmp(source_code(pos), quotes))
                 pos = pos + 1;
                 break;
             end
@@ -301,7 +307,7 @@ function tokenlist = tokenize_code(source_code)
         while pos < length(source_code)
             letter = source_code(pos);
             % commands can contain literal strings:
-            if letter == ''''
+            if any(strcmp(letter, quotes))
                 string_literal = skip_string();
                 add_token('string', string_literal);
             % commands can contain spaces:
