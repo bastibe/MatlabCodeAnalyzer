@@ -98,19 +98,11 @@ function tokenlist = tokenize_code(source_code)
                 add_token('property', symbol);
             % any other operator:
             else
-                symbol = skip(punctuation);
-                % one operator:
-                if any(strcmp(symbol, operators))
-                    add_token('punctuation', symbol);
-                % a binary operator, followed by a unary operator:
-                elseif any(symbol(end) == unary_operators) && ...
-                       any(strcmp(symbol(1:end-1), operators))
-                    add_token('punctuation', symbol(1:end-1));
-                    add_token('punctuation', symbol(end));
+                symbol = skip_from_list(operators);
                 % element-wise transpose operator:
                 % This has to be parsed here, so as to not confuse the `'`
                 % with the beginning of a string.
-                elseif strcmp(symbol, '.') && source_code(pos) == ''''
+                if strcmp(symbol, '.') && source_code(pos) == ''''
                     pos = pos + 1;
                     add_token('punctuation', '.''');
                 % struct access operator such as `.(foo)`:
@@ -118,9 +110,9 @@ function tokenlist = tokenize_code(source_code)
                 % classify `.(` as such here.
                 elseif strcmp(symbol, '.') && source_code(pos) == '('
                     add_token('punctuation', '.');
-                % this should never happen:
+                % one operator:
                 else
-                    error(['unknown operator ''' symbol '''']);
+                    add_token('punctuation', symbol);
                 end
             end
         % strings and transpose begin with `'`. The `.'` operator has
@@ -248,6 +240,19 @@ function tokenlist = tokenize_code(source_code)
         string = source_code(string_start:pos-1);
     end
 
+    function string = skip_from_list(letters_cell)
+    %SKIP_FROM_ARRAY skips and returns letters if they are on a given list
+    %   as STRING.
+    %   this modifies POS!
+
+        string_start = pos;
+        while any(startsWith(letters_cell, source_code(string_start:pos))) ...
+                && pos < length(source_code)
+            pos = pos + 1;
+        end
+        string = source_code(string_start:pos-1);
+    end
+    
     function string = skip_line()
     %SKIP_LINE skips to the end of the line and returns the line as STRING
     %   this modifies POS!
