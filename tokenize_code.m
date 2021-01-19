@@ -99,6 +99,14 @@ function tokenlist = tokenize_code(source_code)
             % any other operator:
             else
                 symbol = skip(punctuation);
+                % ends with '...':
+                % The '...' has to be unskipped and handled here in order
+                % to not cause and error for line endings such as `+...` 
+                % or `&&...`.
+                if length(symbol) > 3 && strcmp(symbol(end-2:end), '...')
+                    pos = pos - 3;
+                    symbol = symbol(1:end-3);
+                end
                 % one operator:
                 if any(strcmp(symbol, operators))
                     add_token('punctuation', symbol);
