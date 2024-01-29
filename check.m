@@ -875,6 +875,8 @@ function report = report_indentation(func_struct)
     nesting = func_struct.nesting;
     function_nesting = func_struct.nesting;
 
+    is_switch_nesting = false;
+
     for line_idx = 1:length(linelist)
         line_tokens = linelist{line_idx};
         is_continuation = is_continuation_line(line_idx, linelist);
@@ -889,6 +891,20 @@ function report = report_indentation(func_struct)
         if ~is_continuation
             [nesting, function_nesting, correction] = ...
                indentation_rule(nesting, function_nesting, first_nonspace);
+
+            % Special case for switch
+            if first_nonspace.isEqual('keyword', 'switch')
+            	% Increment nesting by 1 for switch statement
+                nesting = nesting + 1;
+                correction = correction - 1;
+                is_switch_nesting = true;
+            end
+
+            if first_nonspace.isEqual('keyword', 'end') && is_switch_nesting
+            	% Reverse nesting increment for switch statement at 'end'
+                nesting = nesting - 1;
+                is_switch_nesting = false;
+            end
         end
 
         increment = check_settings('indentation_step');
