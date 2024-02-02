@@ -100,8 +100,26 @@ function tokenlist = tokenize_code(source_code)
             else
                 symbol = skip(punctuation);
                 % one operator:
-                if any(strcmp(symbol, operators))
-                    add_token('punctuation', symbol);
+                % Multiple operators can be present in 'symbol', e.g. '&&...' or
+                % '|...'. Find largest operator at start of symbol.
+                largest_start_operator = find_pattern(operators);
+                if ~isempty(largest_start_operator)
+                    % Add operator and keep remainder of symbol for next
+                    % iteration.
+                    add_token('punctuation', largest_start_operator);
+                    pos = pos - length(symbol) + length(largest_start_operator);
+                    % All text on the same line after '...' must be interpreted 
+                    % as a comment.
+                    if strcmp(largest_start_operator, '...')
+                        symbol = skip(spaces);
+                        if ~isempty(symbol)
+                            add_token('space', symbol)
+                        end
+                        symbol = skip_unless(breaks);
+                        if ~isempty(symbol)
+                            add_token('comment', symbol);
+                        end
+                    end
                 % a binary operator, followed by a unary operator:
                 elseif any(symbol(end) == unary_operators) && ...
                        any(strcmp(symbol(1:end-1), operators))
@@ -333,6 +351,29 @@ function tokenlist = tokenize_code(source_code)
             else
                 str = skip_unless([breaks spaces '%,;']);
                 add_token('string', str);
+            end
+        end
+    end
+
+    function pat_out = find_pattern(pat)
+    %FIND_PATTERN Find pattern with most characters in symbol.
+    % pat_out = FIND_PATTERN(pat) returns the pattern with which
+    % SYMBOL starts and that has the most characters. The input 
+    % pat is a cell array of character vectors that represent the
+    % patterns that should be tested. If symbol does not start 
+    % with any pattern defined by pat, pat_out is empty.
+        pat_out = '';
+        % Find pat location. If non-existent, idx is zero.
+        pat_idx = cellfun(@(x) strfind(symbol, x), pat, 'UniformOutput', false);
+        pat_idx(cellfun(@isempty, pat_idx)) = {0};
+        pat_idx = [pat_idx{:}];
+        % Only evaluate patterns with which symbol starts (i.e.
+        % pat_idx == 1)
+        if any(pat_idx == 1)
+            start_pat_array = pat(pat_idx == 1);
+            [~, max_start_idx] = max(cellfun(@length, start_pat_array));
+            if length(max_start_idx) == 1
+                pat_out = start_pat_array{max_start_idx};
             end
         end
     end
