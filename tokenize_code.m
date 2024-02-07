@@ -22,7 +22,7 @@ function tokenlist = tokenize_code(source_code)
 % (c) 2016, Bastian Bechtold
 % This code is licensed under the terms of the BSD 3-clause license
 
-    punctuation = '=.&|><~+-*^/\:@';
+    punctuation = '=.&|><~+-*^/\:@?';
     open_pairs = '{[(';
     close_pairs = '}])';
     escapes = '!%';
@@ -32,7 +32,7 @@ function tokenlist = tokenize_code(source_code)
     operators = { '+'  '-'  '*'  '/'  '^'  '\' ...
                  '.+' '.-' '.*' './' '.^' '.\' ...
                  '>' '<' '~' '==' '>=' '<=' '~=' ...
-                 '@' '=' ',' ';' '||' '&&' '|' '&' '...' ':'};
+                 '@' '=' ',' ';' '||' '&&' '|' '&' '...' ':' '.?'};
     unary_operators = '+-@~.';
 
     spaces = sprintf(' \t');
@@ -66,8 +66,14 @@ function tokenlist = tokenize_code(source_code)
             else
                 add_token('identifier', symbol);
                 % if this is the start of a command, the rest of the line
-                % needs to be interpreted as strings:
-                if is_first_symbol && nesting == 0
+                % needs to be interpreted as strings. 
+                % Note: this is not the case if the the identifier is inside a
+                % 'properties' or 'arguments' block. In that case, the rest of 
+                % the line needs to be interpreted as validation routine.
+                last_keyword_idx = find(strcmp({tokenlist.type}, 'keyword'), 1, 'last');
+                is_argument_validation_command = ~isempty(last_keyword_idx) && ...
+                    any(strcmp(tokenlist(last_keyword_idx).text, {'properties' 'arguments'}), 2);
+                if is_first_symbol && nesting == 0 && ~is_argument_validation_command
                     is_first_symbol = false;
                     saved_pos = pos;
                     first_space = skip(spaces);

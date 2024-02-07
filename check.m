@@ -498,7 +498,8 @@ function report = report_documentation(func_struct)
                                 'message', msg)];
     end
     for variable = func_struct.arguments
-        if isempty(strfind(lower(doc_text), lower(variable.text)))
+        if isempty(strfind(lower(doc_text), lower(variable.text))) && ...
+        	~strcmp(doc_text, 'varargin')
             msg = sprintf(template, 'function argument', variable.text);
             report = [report struct('token', variable, ...
                                     'severity', 2, ...
@@ -506,7 +507,8 @@ function report = report_documentation(func_struct)
         end
     end
     for variable = func_struct.returns
-        if isempty(strfind(lower(doc_text), lower(variable.text)))
+        if isempty(strfind(lower(doc_text), lower(variable.text))) && ...
+        	~strcmp(doc_text, 'varargout')
             msg = sprintf(template, 'return argument', variable.text);
             report = [report struct('token', variable, ...
                                     'severity', 2, ...
@@ -663,7 +665,8 @@ function report = report_variables(varlist, tokenlist, description)
     end
 
     for variable = varlist
-        if does_shadow(variable.text)
+        if does_shadow(variable.text) && ...
+        	~any(strcmp(variable.text, {'varargin', 'varargout'}))
             msg = sprintf('%s ''%s'' shadows a built-in', ...
                           description, variable.text);
             report = [report struct('token', variable, ...
